@@ -2,6 +2,8 @@
 
 Jakub's nonfiction blog, where every post is a room you step inside, plus a private comment tracker for NFW.
 
+Live: https://kestrelkua.github.io/jopamine/ (every push to `main` redeploys through GitHub Actions).
+
 ## Run it
 
 ```bash
@@ -38,6 +40,11 @@ Each post's `scene` picks its room (`src/scenes/BlueRoomScene.tsx`, `src/scenes/
 - Each room's end-of-post gift is set in `src/reader/gifts.ts` (the cave hands over a guitar; the Blue Room
   leaves a spark). Room music lives in `src/music.ts` and only starts after the reader's first click or key press.
 - Editor undo (⌘Z / ⇧⌘Z) works across blocks and is recorded in the replay as a `doc` op.
+
+## The tracker's roster stays private
+
+Classmates' names are never committed. They live in `private/roster.json` (git-ignored). The first time you
+open `/tracker` in a browser, press **Load roster** and pick that file; it's saved in that browser only.
 
 ## Tracker rules
 
