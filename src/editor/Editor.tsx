@@ -493,7 +493,7 @@ function EditorInner({ initial }: { initial: Draft }) {
         </main>
 
         <aside className="ed-preview">
-          <iframe ref={frame} src={`/preview/${initial.id}`} title="Preview" />
+          <iframe ref={frame} src={`${import.meta.env.BASE_URL}preview/${initial.id}`} title="Preview" />
         </aside>
       </div>
 

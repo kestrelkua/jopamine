@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { me, personById, roster, sectionName, type Person, type SectionId } from './roster'
+import { hasRoster, me, personById, roster, saveRoster, sectionName, type Person, type SectionId } from './roster'
 import { POSTS, categoryLabel, categoryOf, evaluate, isFirstTime, suggest, tallyColumns } from './rules'
 import { isTrackerState, useTrackerStore } from './store'
 import './Tracker.css'
@@ -13,7 +13,37 @@ function groupsOf(section: SectionId) {
   return [...map.entries()]
 }
 
+/** Classmates' names live outside the code, so the first visit asks for the roster file. */
+function LoadRoster() {
+  const input = useRef<HTMLInputElement>(null)
+  const [bad, setBad] = useState(false)
+  const take = async (file: File | undefined) => {
+    if (!file) return
+    if (saveRoster(await file.text())) location.reload()
+    else setBad(true)
+  }
+  return (
+    <div className="tracker">
+      <header className="tr-head">
+        <Link to="/" className="tr-back">
+          ← Blog
+        </Link>
+        <h1>Comment tracker</h1>
+      </header>
+      <button className="btn primary" onClick={() => input.current?.click()}>
+        Load roster
+      </button>
+      {bad && <p className="tr-warn">That file isn’t a roster.</p>}
+      <input ref={input} type="file" accept="application/json,.json" hidden onChange={(e) => void take(e.target.files?.[0])} />
+    </div>
+  )
+}
+
 export default function Tracker() {
+  return hasRoster ? <TrackerView /> : <LoadRoster />
+}
+
+function TrackerView() {
   const store = useTrackerStore()
   const { entries, currentPost: post, due } = store.state
   const { checks, forPost, complete } = evaluate(post, entries)

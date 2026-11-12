@@ -46,7 +46,7 @@ export default function Home() {
       {opening && <Door post={opening.post} from={opening.from} onDone={arrive} />}
 
       <footer className="home-foot">
-        <Link to="/write">write</Link> · <Link to="/tracker">tracker</Link>
+        <Link to="/write">write</Link>
       </footer>
     </div>
   )
