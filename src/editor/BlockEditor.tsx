@@ -1,6 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { EBlock } from '../content/replay'
+import type { SceneId } from '../content/types'
+import SceneThumb from '../scenes/SceneThumb'
 import { blockTypes, type BlockType } from './blocks'
+import { useOutside } from './useOutside'
 
 export interface FocusRequest {
   id: string
@@ -9,6 +12,7 @@ export interface FocusRequest {
 
 interface Props {
   block: EBlock
+  scene: SceneId
   focuses: { id: string; name: string }[]
   focusReq: FocusRequest | null
   onFocus: () => void
@@ -17,9 +21,15 @@ interface Props {
   onSplit: (pos: number) => void
   onRemoveEmpty: () => void
   onPasteParagraphs: (pos: number, end: number, parts: string[]) => void
-  onMove: (dir: -1 | 1) => void
+  onTurnInto: (type: BlockType, text?: string) => void
+  onDuplicate: () => void
   onDelete: () => void
-  onTurnInto: (type: BlockType) => void
+  onSceneHere: (pos: number) => void
+  onMoment: (start: number, end: number) => void
+  onPeek: (focus: string | null) => void
+  onSelection: (sel: { start: number; end: number } | null) => void
+  onDragStart: () => void
+  onDragEnd: () => void
 }
 
 /** A textarea that grows with its content. */
@@ -36,21 +46,154 @@ function Grow(props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { areaR
   return <textarea ref={ref} rows={1} {...rest} />
 }
 
+function Handle({ props }: { props: Props }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useOutside(ref, open, () => setOpen(false))
+  return (
+    <div className="ed-handle-wrap" ref={ref}>
+      <button
+        className="ed-handle"
+        draggable
+        aria-label="Drag to move, click for options"
+        onClick={() => setOpen(!open)}
+        onDragStart={(e) => {
+          e.dataTransfer.setData('text/plain', props.block.id)
+          e.dataTransfer.effectAllowed = 'move'
+          setOpen(false)
+          props.onDragStart()
+        }}
+        onDragEnd={props.onDragEnd}
+      >
+        ⋮⋮
+      </button>
+      {open && (
+        <div className="ed-menu" role="menu">
+          <div className="ed-menu-types">
+            {blockTypes.map((t) => (
+              <button
+                key={t.type}
+                className={t.type === props.block.type ? 'on' : ''}
+                title={t.name}
+                onClick={() => {
+                  props.onTurnInto(t.type)
+                  setOpen(false)
+                }}
+              >
+                <span>{t.icon}</span>
+                {t.name}
+              </button>
+            ))}
+          </div>
+          <button className="ed-menu-row" onClick={() => (props.onDuplicate(), setOpen(false))}>
+            Duplicate
+          </button>
+          <button className="ed-menu-row danger" onClick={() => (props.onDelete(), setOpen(false))}>
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SceneCue({ props }: { props: Props }) {
+  const block = props.block as Extract<EBlock, { type: 'cue' }>
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const close = () => {
+    setOpen(false)
+    props.onPeek(null)
+  }
+  useOutside(ref, open, close)
+
+  // A freshly added scene opens straight into the picker.
+  useEffect(() => {
+    if (props.focusReq?.id === block.id) setOpen(true)
+  }, [props.focusReq, block.id])
+
+  const current = props.focuses.find((f) => f.id === block.focus)
+  return (
+    <div className="ed-cue-wrap" ref={ref}>
+      <div className="ed-cue">
+        <button className="ed-cue-pick" onClick={() => (open ? close() : setOpen(true))} aria-expanded={open}>
+          <SceneThumb scene={props.scene} focus={block.focus} />
+          <span>{current?.name ?? block.focus}</span>
+          <span className="ed-caret">▾</span>
+        </button>
+        <input className="ed-cue-label" value={block.label} placeholder="Scene name" onChange={(e) => props.onSet({ ...block, label: e.target.value })} />
+      </div>
+      {open && (
+        <div className="ed-tray" onMouseLeave={() => props.onPeek(null)}>
+          {props.focuses.map((f) => (
+            <button
+              key={f.id}
+              className={`ed-tray-card ${f.id === block.focus ? 'on' : ''}`}
+              onMouseEnter={() => props.onPeek(f.id)}
+              onFocus={() => props.onPeek(f.id)}
+              onClick={() => {
+                props.onSet({ ...block, focus: f.id })
+                close()
+              }}
+            >
+              <SceneThumb scene={props.scene} focus={f.id} />
+              <span>{f.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function BlockEditor(props: Props) {
   const { block, focusReq } = props
   const area = useRef<HTMLTextAreaElement>(null)
-  const [selection, setSelection] = useState('')
+  const [rawSel, setRawSel] = useState<{ start: number; end: number; text: string } | null>(null)
+  // A selection only counts while the text it was made in is unchanged.
+  const sel = rawSel && 'text' in block && rawSel.text === block.text ? rawSel : null
+  const setSel = (next: { start: number; end: number; text: string } | null) => {
+    setRawSel(next)
+    props.onSelection(next && { start: next.start, end: next.end })
+  }
+  const [slashIndex, setSlashIndex] = useState(0)
+  const [slashOff, setSlashOff] = useState(false)
 
   useLayoutEffect(() => {
     if (focusReq?.id !== block.id) return
-    const el = area.current ?? (document.querySelector(`[data-block="${block.id}"] input, [data-block="${block.id}"] select`) as HTMLInputElement | null)
+    const el = area.current ?? (document.querySelector(`[data-block="${block.id}"] input`) as HTMLInputElement | null)
     if (!el) return
     el.focus()
     if (el instanceof HTMLTextAreaElement) el.setSelectionRange(focusReq.pos, focusReq.pos)
   }, [focusReq, block.id])
 
+  // "/" at the start of an empty paragraph opens the block menu.
+  const slashQuery = block.type === 'p' && /^\/[a-z]*$/i.test(block.text) && !slashOff ? block.text.slice(1).toLowerCase() : null
+  const slashItems = slashQuery === null ? [] : blockTypes.filter((t) => t.type !== 'p' && t.name.toLowerCase().startsWith(slashQuery))
+  const pickSlash = (type: BlockType) => {
+    props.onTurnInto(type, '')
+    setSlashIndex(0)
+  }
+
   const textKeys = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
+    if (slashItems.length > 0) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        const d = e.key === 'ArrowDown' ? 1 : -1
+        setSlashIndex((slashIndex + d + slashItems.length) % slashItems.length)
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        pickSlash(slashItems[Math.min(slashIndex, slashItems.length - 1)].type)
+        return
+      }
+      if (e.key === 'Escape') {
+        setSlashOff(true)
+        return
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey && block.type === 'p') {
       e.preventDefault()
       props.onSplit(el.selectionStart)
@@ -73,36 +216,62 @@ export default function BlockEditor(props: Props) {
 
   const trackSelection = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
-    setSelection(el.value.slice(el.selectionStart, el.selectionEnd).trim())
+    const picked = el.value.slice(el.selectionStart, el.selectionEnd)
+    setSel(picked.trim() ? { start: el.selectionStart, end: el.selectionEnd, text: el.value } : null)
   }
 
   let body: React.ReactNode
   switch (block.type) {
-    case 'p':
+    case 'p': {
+      const picked = sel ? block.text.slice(sel.start, sel.end).trim() : ''
       body = (
         <>
           <Grow
             areaRef={area}
             className="ed-text ed-p"
             value={block.text}
-            placeholder="Write…"
-            onChange={(e) => props.onText(e.target.value)}
+            placeholder="Write, or type / for more"
+            onChange={(e) => {
+              setSlashOff(false)
+              props.onText(e.target.value)
+            }}
             onKeyDown={textKeys}
             onPaste={paste}
             onSelect={trackSelection}
-            onBlur={() => window.setTimeout(() => setSelection(''), 200)}
+            onBlur={() => window.setTimeout(() => setSel(null), 150)}
           />
-          {selection && selection.length < 120 && (
-            <button
-              className="ed-note-add"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                props.onSet({ ...block, notes: [...(block.notes ?? []), { anchor: selection, text: '' }] })
-                setSelection('')
-              }}
-            >
-              ✎ note
-            </button>
+          {slashItems.length > 0 && (
+            <div className="ed-slash" role="listbox">
+              {slashItems.map((t, i) => (
+                <button
+                  key={t.type}
+                  role="option"
+                  aria-selected={i === slashIndex}
+                  className={i === slashIndex ? 'on' : ''}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pickSlash(t.type)}
+                >
+                  <span>{t.icon}</span>
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {sel && picked && (
+            <div className="ed-bubble" onMouseDown={(e) => e.preventDefault()}>
+              {picked.length < 120 && (
+                <button
+                  onClick={() => {
+                    props.onSet({ ...block, notes: [...(block.notes ?? []), { anchor: picked, text: '' }] })
+                    setSel(null)
+                  }}
+                >
+                  ✎ Note
+                </button>
+              )}
+              <button onClick={() => (props.onSceneHere(sel.start), setSel(null))}>◆ Scene here</button>
+              {picked.length < 60 && <button onClick={() => (props.onMoment(sel.start, sel.end), setSel(null))}>! Moment</button>}
+            </div>
           )}
           {block.notes?.map((n, i) => (
             <div key={i} className={`ed-note ${block.text.includes(n.anchor) ? '' : 'lost'}`}>
@@ -122,6 +291,7 @@ export default function BlockEditor(props: Props) {
         </>
       )
       break
+    }
     case 'heading':
     case 'moment':
     case 'signature':
@@ -137,20 +307,7 @@ export default function BlockEditor(props: Props) {
       )
       break
     case 'cue':
-      body = (
-        <div className="ed-cue">
-          <span className="ed-cue-mark">◆</span>
-          <select value={block.focus} onChange={(e) => props.onSet({ ...block, focus: e.target.value })} aria-label="Scene">
-            {props.focuses.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-            {!props.focuses.some((f) => f.id === block.focus) && <option value={block.focus}>{block.focus}</option>}
-          </select>
-          <input className="ed-cue-label" value={block.label} placeholder="Scene name" onChange={(e) => props.onSet({ ...block, label: e.target.value })} />
-        </div>
-      )
+      body = <SceneCue props={props} />
       break
     case 'steps':
       body = (
@@ -170,35 +327,20 @@ export default function BlockEditor(props: Props) {
 
   return (
     <div className={`ed-block ed-block-${block.type}`} data-block={block.id} onFocus={props.onFocus}>
+      <Handle props={props} />
       {body}
-      <div className="ed-tools">
-        <button onClick={() => props.onMove(-1)} aria-label="Move up">
-          ↑
-        </button>
-        <button onClick={() => props.onMove(1)} aria-label="Move down">
-          ↓
-        </button>
-        <select value={block.type} onChange={(e) => props.onTurnInto(e.target.value as BlockType)} aria-label="Block type">
-          {blockTypes.map((t) => (
-            <option key={t.type} value={t.type}>
-              {t.icon} {t.name}
-            </option>
-          ))}
-        </select>
-        <button onClick={props.onDelete} aria-label="Delete block">
-          ✕
-        </button>
-      </div>
     </div>
   )
 }
 
 export function Inserter({ onPick }: { onPick: (type: BlockType) => void }) {
   const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useOutside(ref, open, () => setOpen(false))
   return (
-    <div className={`ed-insert ${open ? 'open' : ''}`}>
+    <div className={`ed-insert ${open ? 'open' : ''}`} ref={ref}>
       {open ? (
-        <div className="ed-insert-menu" onMouseLeave={() => setOpen(false)}>
+        <div className="ed-insert-menu">
           {blockTypes.map((t) => (
             <button
               key={t.type}

@@ -14,7 +14,7 @@
   display: block;
 }
 @media (min-width: 1000px) {
-  .scene {
+  .stage .scene {
     position: absolute;
     left: -33vw;
     width: 133vw;

@@ -29,11 +29,14 @@ export function Preview() {
   const drafts = useDrafts()
   const draft = drafts.find((d) => d.id === id)
   const [target, setTarget] = useState<number | null>(null)
+  const [peek, setPeek] = useState<string | null>(null)
   const shown = useRef<number | null>(null)
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      if (e.origin === location.origin && e.data?.type === 'goto') setTarget(e.data.index)
+      if (e.origin !== location.origin) return
+      if (e.data?.type === 'goto') setTarget(e.data.index)
+      if (e.data?.type === 'peek') setPeek(e.data.focus)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
@@ -49,7 +52,7 @@ export function Preview() {
   }, [target, draft])
 
   if (!draft) return <div className="reader-missing">…</div>
-  return <ReaderView post={toPreviewPost(draft)} replay={null} />
+  return <ReaderView post={toPreviewPost(draft)} replay={null} focusOverride={peek} />
 }
 
 const toPreviewPost = (d: Draft) => ({ ...draftToPost(d), slug: `preview-${d.id}` })

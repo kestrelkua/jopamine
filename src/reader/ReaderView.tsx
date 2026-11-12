@@ -15,9 +15,11 @@ interface Props {
   post: Post
   next?: Post
   replay?: Replay | null
+  /** Shows this scene focus regardless of scroll (the editor's scene picker uses it). */
+  focusOverride?: string | null
 }
 
-export default function ReaderView({ post, next, replay }: Props) {
+export default function ReaderView({ post, next, replay, focusOverride }: Props) {
   const sections = useMemo(() => toSections(post), [post])
   const { refs, state } = useScrollScenes(sections.length)
   const [commentary, setCommentary] = useState(true)
@@ -36,9 +38,9 @@ export default function ReaderView({ post, next, replay }: Props) {
     <div className={`reader card-${post.theme.card} chem-${post.chemical} ${replaying ? 'replaying' : ''}`} style={{ '--accent': post.theme.accent } as React.CSSProperties}>
       <Stage
         scene={post.scene}
-        focus={replaying ? replayFocus : (current?.focus ?? 'default')}
+        focus={focusOverride ?? (replaying ? replayFocus : (current?.focus ?? 'default'))}
         progress={replaying ? 0.5 : progress}
-        dimmed={focusMode || replaying}
+        dimmed={!focusOverride && (focusMode || replaying)}
       />
 
       <header className="topbar">
