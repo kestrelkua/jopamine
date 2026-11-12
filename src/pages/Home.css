@@ -1,0 +1,116 @@
+.home {
+  min-height: 100vh;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+}
+.home-hero {
+  padding: 12vh 0 6vh;
+}
+.home-title {
+  font: 800 clamp(44px, 10vw, 104px) / 0.95 var(--font-display);
+  margin: 0;
+}
+.home-title .j {
+  color: var(--dopamine-deep);
+}
+.home-title .t {
+  color: var(--oxytocin-deep);
+}
+.home-tag {
+  font: 400 clamp(18px, 2.6vw, 22px) / 1.5 var(--font-body);
+  margin: 20px 0 6px;
+  max-width: 560px;
+}
+.sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+.side {
+  border-radius: 22px;
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 5px solid var(--chem);
+}
+.side.dopamine {
+  --chem: var(--dopamine);
+}
+.side.oxytocin {
+  --chem: var(--oxytocin);
+}
+.side-name {
+  font: 700 28px var(--font-display);
+  margin: 0;
+}
+.side-blurb {
+  margin: 4px 0 18px;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-family: var(--font-body);
+}
+.post-card {
+  display: flex;
+  gap: 16px;
+  text-decoration: none;
+  border-radius: 16px;
+  padding: 12px;
+  margin: 0 -12px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.post-card:hover {
+  background: var(--surface-2);
+  transform: translateY(-2px);
+}
+.post-card-art {
+  flex: 0 0 92px;
+  height: 116px;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.scene-blue-room .post-card-art {
+  background: linear-gradient(#4a80c8, #2c548f 70%, #22406f 70%);
+}
+.scene-blue-room .post-card-art::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  top: 18px;
+  width: 44px;
+  height: 40px;
+  background: linear-gradient(#a9dcff, #fff1cf);
+  border: 4px solid #f4f1ea;
+  border-radius: 3px;
+}
+.scene-cave .post-card-art {
+  background: radial-gradient(circle at 50% 85%, #ffb347 0, #8a3b17 22%, #24130c 55%, #0b0605 100%);
+}
+.post-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.post-card-title {
+  font: 700 22px var(--font-display);
+}
+.post-card-teaser {
+  font: 400 15px / 1.5 var(--font-body);
+  color: var(--ink-soft);
+}
+.post-card-meta {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: auto;
+}
+.home-foot {
+  margin-top: 40px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.home-foot a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}

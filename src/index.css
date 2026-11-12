@@ -1,0 +1,88 @@
+:root {
+  --dopamine: #f2b134;
+  --dopamine-deep: #c9821a;
+  --oxytocin: #ef6f9a;
+  --oxytocin-deep: #c94b78;
+
+  --bg: #fbf7f1;
+  --surface: #ffffff;
+  --surface-2: #f3ede4;
+  --ink: #1f1b24;
+  --ink-soft: #5e5866;
+  --line: #e4dccf;
+  --ok: #2f9e6a;
+  --warn: #d0732a;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Literata', Georgia, serif;
+  --font-ui: 'Inter', system-ui, sans-serif;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #15121a;
+    --surface: #1f1b26;
+    --surface-2: #29242f;
+    --ink: #f1ebf4;
+    --ink-soft: #a9a1b1;
+    --line: #38313f;
+    --ok: #5cc995;
+    --warn: #f0a060;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #15121a;
+  --surface: #1f1b26;
+  --surface-2: #29242f;
+  --ink: #f1ebf4;
+  --ink-soft: #a9a1b1;
+  --line: #38313f;
+  --ok: #5cc995;
+  --warn: #f0a060;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--oxytocin);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
