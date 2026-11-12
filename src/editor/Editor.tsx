@@ -2,9 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { posts as builtIn } from '../content'
 import { draftToPost, loadDrafts, loadReplay, newId, saveDraft, saveReplay, slugify, type Draft } from '../content/drafts'
-import { applyOp, diffText, type EBlock, type Meta, type Op, type OpInput, type Replay } from '../content/replay'
+import { savePhoto } from '../content/photos'
+import { applyOp, diffText, lastStretch, type Doc, type EBlock, type Meta, type Op, type OpInput, type Replay } from '../content/replay'
 import type { SceneId } from '../content/types'
+import ReplayOverlay from '../reader/ReplayOverlay'
+import '../reader/Reader.css'
+import { sceneComponents } from '../scenes/components'
 import { rooms } from '../scenes/registry'
+import { ding, setSoundOn, soundOn } from '../sound'
 import BlockEditor, { Inserter, type FocusRequest } from './BlockEditor'
 import { makeBlock, type BlockType } from './blocks'
 import Toolbar from './Toolbar'
@@ -20,6 +25,27 @@ function sectionIndex(blocks: EBlock[]): Map<string, number> {
   })
   return map
 }
+
+/** The scene focus in effect at block `id` (the last cue above it). */
+function focusAt(blocks: EBlock[], id: string | null): string {
+  let focus = 'default'
+  for (const b of blocks) {
+    if (b.type === 'cue') focus = b.focus
+    if (b.id === id) break
+  }
+  return focus
+}
+
+function loadGoal(id: string): number {
+  try {
+    return Number(localStorage.getItem(`jt.goal.${id}`)) || 800
+  } catch {
+    return 800
+  }
+}
+
+/** What an op is "doing", so a run of typing in one place undoes as one step. */
+const runKey = (op: OpInput) => (op.k === 'text' ? `t${op.id}` : op.k === 'set' ? `s${op.block.id}` : op.k === 'meta' ? `m${Object.keys(op.patch)}` : null)
 
 export default function Editor() {
   const { id } = useParams()
@@ -41,6 +67,13 @@ function EditorInner({ initial }: { initial: Draft }) {
   const [dragId, setDragId] = useState<string | null>(null)
   const [drop, setDrop] = useState<{ id: string; before: boolean } | null>(null)
   const [sel, setSel] = useState<{ id: string; start: number; end: number } | null>(null)
+  const [flick, setFlick] = useState({ id: '', n: 0 })
+  const [goal, setGoal] = useState(() => loadGoal(initial.id))
+  const [goalOpen, setGoalOpen] = useState(false)
+  const [typewriter, setTypewriter] = useState(false)
+  const [mini, setMini] = useState<Replay | null>(null)
+  const [sound, setSound] = useState(soundOn)
+  const history = useRef({ past: [] as Doc[], future: [] as Doc[], run: null as string | null, runAt: 0, grouped: false })
   const frame = useRef<HTMLIFrameElement>(null)
   const timer = useRef(0)
 
@@ -59,12 +92,46 @@ function EditorInner({ initial }: { initial: Draft }) {
     }
   }, [flush])
 
-  const commit = (op: OpInput) => {
+  const record = (op: OpInput) => {
     docRef.current = applyOp(docRef.current, op)
     replayRef.current.ops.push({ ...op, t: Date.now() } as Op)
     setDoc(docRef.current)
     window.clearTimeout(timer.current)
     timer.current = window.setTimeout(flush, 350)
+  }
+
+  /** Saves an undo point unless this op continues the same run of typing, or is part of the same action. */
+  const remember = (op: OpInput) => {
+    const h = history.current
+    const now = Date.now()
+    const key = runKey(op)
+    const continuing = key !== null && key === h.run && now - h.runAt < 1200
+    h.run = key
+    h.runAt = now
+    h.future = []
+    if (continuing || h.grouped) return
+    h.past.push(docRef.current)
+    if (h.past.length > 300) h.past.shift()
+    h.grouped = true
+    queueMicrotask(() => (h.grouped = false))
+  }
+
+  const commit = (op: OpInput) => {
+    if ((op.k === 'ins' || op.k === 'set') && op.block.type === 'moment' && find(op.block.id)?.type !== 'moment') ding()
+    remember(op)
+    record(op)
+  }
+
+  const travel = (back: boolean) => {
+    const h = history.current
+    const target = (back ? h.past : h.future).pop()
+    if (!target) return
+    ;(back ? h.future : h.past).push(docRef.current)
+    h.run = null
+    const now = docRef.current.blocks
+    const changed = target.blocks.find((b) => !now.includes(b)) ?? target.blocks.find((b) => b.id === activeId)
+    record({ k: 'doc', doc: target })
+    if (changed) setFocusReq({ id: changed.id, pos: 'text' in changed ? changed.text.length : 0 })
   }
 
   const blocks = doc.blocks
@@ -97,7 +164,7 @@ function EditorInner({ initial }: { initial: Draft }) {
     commit({ k: 'mv', id, after })
   }
   const turnInto = (b: EBlock, type: BlockType, keep?: string) => {
-    const text = keep ?? ('text' in b ? b.text : b.type === 'steps' ? b.items.join(' ') : b.type === 'cue' ? b.label : '')
+    const text = keep ?? ('text' in b ? b.text : b.type === 'steps' ? b.items.join(' ') : b.type === 'cue' ? b.label : b.type === 'photo' ? b.caption : '')
     const next = { ...makeBlock(type, doc.meta.scene, text), id: b.id }
     commit({ k: 'set', block: next })
     setFocusReq({ id: b.id, pos: text.length })
@@ -160,10 +227,49 @@ function EditorInner({ initial }: { initial: Draft }) {
     act(selected, sel.start, sel.end)
     setSel(null)
   }
+  /** Saves each image and adds a photo block for it after `after`. */
+  const addPhotos = async (files: File[], after: string | null) => {
+    for (const f of files) {
+      const block = { ...makeBlock('photo', doc.meta.scene), src: await savePhoto(f) } as EBlock
+      commit({ k: 'ins', after, block })
+      after = block.id
+    }
+  }
   const noteAt = (b: EBlock, start: number, end: number) => {
     if (b.type !== 'p') return
     commit({ k: 'set', block: { ...b, notes: [...(b.notes ?? []), { anchor: b.text.slice(start, end).trim(), text: '' }] } })
   }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        travel(!e.shiftKey)
+      } else if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        travel(false)
+      } else if (mod && e.shiftKey && e.key === 'Enter') {
+        e.preventDefault()
+        setTypewriter((t) => !t)
+      } else if (e.key === 'Escape' && typewriter && !document.querySelector('.ed-slash, .ed-tray, .ed-menu')) {
+        setTypewriter(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  })
+
+  // Typewriter mode keeps the line being written a little above the middle of the screen.
+  useEffect(() => {
+    if (!typewriter) return
+    const el = document.activeElement
+    if (!(el instanceof HTMLTextAreaElement)) return
+    const r = el.getBoundingClientRect()
+    const caretY = r.top + r.height * (el.value.length ? el.selectionStart / el.value.length : 0)
+    const delta = caretY - window.innerHeight * 0.45
+    if (Math.abs(delta) > 24) window.scrollBy({ top: delta })
+  }, [doc, typewriter])
 
   // Keep the preview on the scene being written.
   const sections = useMemo(() => sectionIndex(blocks), [blocks])
@@ -193,17 +299,61 @@ function EditorInner({ initial }: { initial: Draft }) {
     URL.revokeObjectURL(a.href)
   }
 
+  const pickGoal = (n: number) => {
+    setGoal(n)
+    try {
+      localStorage.setItem(`jt.goal.${initial.id}`, String(n))
+    } catch {
+      // The goal just resets next time.
+    }
+  }
+  const ambientFocus = focusAt(blocks, activeId)
+  const Ambient = sceneComponents[doc.meta.scene]
+  const noFocus = useCallback(() => {}, [])
+
   const words = blocks.reduce((n, b) => n + ('text' in b && b.type === 'p' ? b.text.split(/\s+/).filter(Boolean).length : 0), 0)
   const room = rooms[doc.meta.scene]
 
   return (
-    <div className={`editor view-${view}`}>
+    <div className={`editor view-${view} ${typewriter ? 'typewriter' : ''}`}>
+      <div className="ed-ambience" aria-hidden="true">
+        <Ambient focus={ambientFocus} progress={0.5} />
+      </div>
+      {typewriter && (
+        <button className="ed-tw-exit" onClick={() => setTypewriter(false)} aria-label="Leave typewriter mode">
+          ◎
+        </button>
+      )}
       <header className="ed-bar">
+        <div className={`ed-meter chem-${doc.meta.chemical} ${words >= goal ? 'full' : ''}`} aria-hidden="true">
+          <i style={{ width: `${Math.min(100, (words / goal) * 100)}%` }} />
+        </div>
         <Link to="/write" className="ed-back" onClick={flush}>
           ←
         </Link>
         <span className={`ed-status ${saved ? '' : 'bad'}`} title={saved ? 'Saved in this browser · recording for replay' : 'This browser is not saving. Export a copy.'}>
-          <span className="rec-dot" /> {saved ? `${words} words` : 'Not saving'}
+          <button className="ed-mini-play" onClick={() => setMini(lastStretch(replayRef.current, 60_000))} disabled={replayRef.current.ops.length < 2} aria-label="Replay the last minute">
+            <span className="rec-dot" />
+            <span className="ed-mini-tri">▶</span>
+          </button>
+          {saved ? (
+            <span className="ed-goal-wrap">
+              <button className="ed-words" onClick={() => setGoalOpen(!goalOpen)} aria-expanded={goalOpen}>
+                {words} <span className="ed-goal-of">/ {goal}</span>
+              </button>
+              {goalOpen && (
+                <span className="ed-goal">
+                  {[300, 500, 800, 1200, 2000].map((n) => (
+                    <button key={n} className={n === goal ? 'on' : ''} onClick={() => (pickGoal(n), setGoalOpen(false))}>
+                      {n}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </span>
+          ) : (
+            'Not saving'
+          )}
         </span>
         <div className="ed-bar-actions">
           <button className="ed-view-toggle" onClick={() => setView(view === 'write' ? 'preview' : 'write')}>
@@ -242,6 +392,17 @@ function EditorInner({ initial }: { initial: Draft }) {
           <input className="ed-teaser" value={doc.meta.teaser} placeholder="One line for the home page" onChange={(e) => setMeta({ teaser: e.target.value })} />
 
           <Toolbar
+            canUndo={history.current.past.length > 0}
+            canRedo={history.current.future.length > 0}
+            onUndo={() => travel(true)}
+            onRedo={() => travel(false)}
+            typewriter={typewriter}
+            onTypewriter={() => setTypewriter(!typewriter)}
+            sound={sound}
+            onSound={() => {
+              setSoundOn(!sound)
+              setSound(!sound)
+            }}
             hasSelection={!!selected}
             onAdd={addBlock}
             onNote={withSelection(noteAt)}
@@ -249,7 +410,20 @@ function EditorInner({ initial }: { initial: Draft }) {
             onMoment={withSelection(momentAt)}
           />
 
-          <div className="ed-blocks">
+          <div
+            className="ed-blocks"
+            onDragOver={(e) => {
+              if (!dragId && e.dataTransfer.types.includes('Files')) e.preventDefault()
+            }}
+            onDrop={(e) => {
+              const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+              if (dragId || !files.length) return
+              e.preventDefault()
+              const target = (e.target as HTMLElement).closest('[data-block]')?.getAttribute('data-block')
+              void addPhotos(files, target ?? blocks[blocks.length - 1]?.id ?? null)
+              setDrop(null)
+            }}
+          >
             <Inserter onPick={(t) => insertAfter(null, makeBlock(t, doc.meta.scene))} />
             {blocks.map((b) => (
               <div
@@ -262,8 +436,9 @@ function EditorInner({ initial }: { initial: Draft }) {
                   setDrop({ id: b.id, before: e.clientY < r.top + r.height / 2 })
                 }}
                 onDrop={(e) => {
+                  if (!dragId) return
                   e.preventDefault()
-                  if (dragId && drop) moveNear(dragId, drop.id, drop.before)
+                  if (drop) moveNear(dragId, drop.id, drop.before)
                   setDragId(null)
                   setDrop(null)
                 }}
@@ -280,6 +455,7 @@ function EditorInner({ initial }: { initial: Draft }) {
                     const text = 'text' in b ? b.text : ''
                     const moved = cutParagraph(b, text.slice(0, pos), text.slice(pos))
                     insertAfter(b.id, paragraph(text.slice(pos), moved))
+                    if (text.slice(0, pos).trim()) setFlick((f) => ({ id: b.id, n: f.n + 1 }))
                   }}
                   onRemoveEmpty={() => blocks.length > 1 && remove(b.id)}
                   onPasteParagraphs={(start, end, parts) => {
@@ -302,12 +478,14 @@ function EditorInner({ initial }: { initial: Draft }) {
                   onMoment={(start, end) => momentAt(b, start, end)}
                   onPeek={peek}
                   onSelection={(r) => setSel(r && { id: b.id, ...r })}
+                  onPhotos={(files) => void addPhotos(files, b.id)}
                   onDragStart={() => setDragId(b.id)}
                   onDragEnd={() => {
                     setDragId(null)
                     setDrop(null)
                   }}
                 />
+                {flick.id === b.id && <span key={flick.n} className="ed-flick" aria-hidden="true" />}
                 <Inserter onPick={(t) => insertAfter(b.id, makeBlock(t, doc.meta.scene))} />
               </div>
             ))}
@@ -318,6 +496,12 @@ function EditorInner({ initial }: { initial: Draft }) {
           <iframe ref={frame} src={`/preview/${initial.id}`} title="Preview" />
         </aside>
       </div>
+
+      {mini && (
+        <div className={`ed-mini reader card-${doc.meta.card} chem-${doc.meta.chemical}`}>
+          <ReplayOverlay replay={mini} onClose={() => setMini(null)} onFocus={noFocus} initialSpeed={16} />
+        </div>
+      )}
     </div>
   )
 }

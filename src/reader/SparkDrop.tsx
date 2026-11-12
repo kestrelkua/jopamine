@@ -23,7 +23,7 @@ function save(key: string, p: Point) {
 }
 
 /** A small spark at the end of a post. Drag it anywhere to leave it there. */
-export default function SparkDrop({ storageKey }: { storageKey: string }) {
+export default function SparkDrop({ storageKey, line }: { storageKey: string; line: string }) {
   const area = useRef<HTMLDivElement>(null)
   const [placed, setPlaced] = useState<Point | null>(() => load(storageKey))
   const [drag, setDrag] = useState<Point | null>(null)
@@ -45,10 +45,11 @@ export default function SparkDrop({ storageKey }: { storageKey: string }) {
     window.setTimeout(() => setLanded(false), 900)
   }
 
-  const pos = drag ?? placed ?? { x: 0.5, y: 0.72 }
+  const pos = drag ?? placed ?? { x: 0.5, y: 0.3 }
 
   return (
     <div ref={area} className="spark-area">
+      <p className={`gift-line ${placed ? 'gone' : ''}`}>{line}</p>
       <button
         className={`spark ${placed ? 'placed' : 'waiting'} ${drag ? 'dragging' : ''} ${landed ? 'landed' : ''}`}
         style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%` }}

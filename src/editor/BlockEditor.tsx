@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { imageFiles, savePhoto, usePhoto } from '../content/photos'
 import type { EBlock } from '../content/replay'
 import type { SceneId } from '../content/types'
 import SceneThumb from '../scenes/SceneThumb'
@@ -28,6 +29,8 @@ interface Props {
   onMoment: (start: number, end: number) => void
   onPeek: (focus: string | null) => void
   onSelection: (sel: { start: number; end: number } | null) => void
+  /** Image files pasted into this block become photo blocks after it. */
+  onPhotos: (files: File[]) => void
   onDragStart: () => void
   onDragEnd: () => void
 }
@@ -146,6 +149,51 @@ function SceneCue({ props }: { props: Props }) {
   )
 }
 
+function PhotoBlock({ props }: { props: Props }) {
+  const block = props.block as Extract<EBlock, { type: 'photo' }>
+  const url = usePhoto(block.src)
+  const [busy, setBusy] = useState(false)
+  const [over, setOver] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  const take = async (files: File[]) => {
+    if (!files[0]) return
+    setBusy(true)
+    try {
+      props.onSet({ ...block, src: await savePhoto(files[0]) })
+      if (files.length > 1) props.onPhotos(files.slice(1))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <figure className="ed-photo">
+      <button
+        className={`ed-photo-frame ${url ? 'has' : ''} ${over ? 'over' : ''}`}
+        onClick={() => input.current?.click()}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return
+          e.preventDefault()
+          e.stopPropagation()
+          setOver(true)
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return
+          e.preventDefault()
+          e.stopPropagation()
+          setOver(false)
+          void take(imageFiles(e.dataTransfer.files))
+        }}
+        aria-label={url ? 'Replace photo' : 'Add a photo'}
+      >
+        {url ? <img src={url} alt={block.caption} /> : <span className="ed-photo-empty">{busy ? '…' : '▣'}</span>}
+      </button>
+      <input ref={input} type="file" accept="image/*" multiple hidden onChange={(e) => void take(imageFiles(e.target.files))} />
+      <input className="ed-photo-caption" value={block.caption} placeholder="Caption" onChange={(e) => props.onSet({ ...block, caption: e.target.value })} />
+    </figure>
+  )
+}
+
 export default function BlockEditor(props: Props) {
   const { block, focusReq } = props
   const area = useRef<HTMLTextAreaElement>(null)
@@ -204,6 +252,12 @@ export default function BlockEditor(props: Props) {
   }
 
   const paste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pics = imageFiles(e.clipboardData.files)
+    if (pics.length) {
+      e.preventDefault()
+      props.onPhotos(pics)
+      return
+    }
     const text = e.clipboardData.getData('text/plain')
     if (block.type !== 'p' || !/\n/.test(text.trim())) return
     e.preventDefault()
@@ -308,6 +362,9 @@ export default function BlockEditor(props: Props) {
       break
     case 'cue':
       body = <SceneCue props={props} />
+      break
+    case 'photo':
+      body = <PhotoBlock props={props} />
       break
     case 'steps':
       body = (

@@ -93,6 +93,7 @@
 }
 .ed-bar {
   position: sticky;
+  isolation: isolate;
   top: 0;
   z-index: 5;
   display: flex;
@@ -143,6 +144,8 @@
 }
 
 .ed-split {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
 }
@@ -566,17 +569,6 @@
   color: var(--ink-soft);
   font-size: 11px;
 }
-.scene-thumb {
-  display: block;
-  overflow: hidden;
-  border-radius: 7px;
-  background: #111;
-  flex: none;
-}
-.scene-thumb .scene {
-  width: 100%;
-  height: 100%;
-}
 .ed-tray {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -727,11 +719,299 @@
 .ed-tips-glyph {
   color: var(--ink-soft);
 }
-@media (max-width: 700px) {
+/* Names show only when the writing column has room for them. */
+.ed-doc {
+  container-type: inline-size;
+}
+@container (max-width: 820px) {
   .ed-tb-name {
     display: none;
   }
   .ed-toolbar {
     gap: 2px;
+  }
+}
+.ed-tb-end {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.ed-tb-end + .ed-tips-wrap {
+  margin-left: 4px;
+}
+.ed-toolbar button.on {
+  background: color-mix(in srgb, var(--dopamine) 22%, transparent);
+}
+.ed-toolbar button.off .ed-tb-icon {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* ---------- the room behind the page ---------- */
+.ed-ambience {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.2;
+  filter: blur(16px) saturate(1.2);
+  transition: opacity 0.6s ease;
+}
+.ed-ambience .scene {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@media (prefers-color-scheme: light) {
+  .ed-ambience {
+    opacity: 0.14;
+  }
+}
+.ed-preview {
+  background: var(--bg);
+}
+
+/* ---------- little rewards ---------- */
+.ed-flick {
+  position: absolute;
+  left: -16px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dopamine);
+  box-shadow: 0 0 10px var(--dopamine);
+  pointer-events: none;
+  animation: flick 0.8s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes flick {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(-14px, -34px) scale(0.2); opacity: 0; }
+}
+.ed-block-moment {
+  animation: ed-pop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes ed-pop {
+  from { transform: scale(0.4); opacity: 0; }
+}
+
+/* ---------- word goal ---------- */
+.ed-meter {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  z-index: -1;
+}
+.ed-meter i {
+  display: block;
+  height: 100%;
+  background: var(--dopamine);
+  box-shadow: 0 0 8px var(--dopamine);
+  transition: width 0.4s ease;
+}
+.ed-meter.chem-oxytocin i {
+  background: var(--oxytocin);
+  box-shadow: 0 0 8px var(--oxytocin);
+}
+.ed-meter.full i {
+  animation: meter-full 1.6s ease-out;
+}
+@keyframes meter-full {
+  30% { box-shadow: 0 0 24px 4px currentColor; filter: brightness(1.6); }
+}
+.ed-words,
+.ed-mini-play {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ed-words:hover,
+.ed-mini-play:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.ed-goal-of {
+  opacity: 0.55;
+}
+.ed-mini-tri {
+  font-size: 9px;
+  width: 0;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+.ed-mini-play:hover:not(:disabled) .ed-mini-tri {
+  width: 9px;
+}
+.ed-goal-wrap {
+  position: relative;
+}
+.ed-goal {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  z-index: 8;
+}
+.ed-goal button {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font: 600 12px var(--font-ui);
+}
+.ed-goal button.on {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* ---------- typewriter mode ---------- */
+.typewriter .ed-bar,
+.typewriter .ed-meta,
+.typewriter .ed-teaser,
+.typewriter .ed-preview,
+.typewriter .ed-toolbar,
+.typewriter .ed-insert,
+.typewriter .ed-handle-wrap {
+  display: none;
+}
+.typewriter .ed-split {
+  grid-template-columns: minmax(0, 1fr);
+}
+.typewriter .ed-doc {
+  padding-top: 40vh;
+}
+.typewriter .ed-blocks > div {
+  opacity: 0.25;
+  transition: opacity 0.4s ease;
+}
+.typewriter .ed-blocks > div.ed-active,
+.typewriter .ed-blocks > div:focus-within {
+  opacity: 1;
+}
+.typewriter .ed-ambience {
+  opacity: 0.3;
+}
+.ed-tw-exit {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 6;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+.ed-tw-exit:hover {
+  opacity: 1;
+}
+
+/* ---------- last-minute replay ---------- */
+.ed-mini.reader {
+  position: static;
+  min-height: 0;
+  background: none;
+}
+.ed-mini .replay {
+  background: color-mix(in srgb, #0d0a10 82%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+/* ---------- photo block ---------- */
+.ed-photo {
+  margin: 14px 0;
+}
+.ed-photo-frame {
+  display: block;
+  width: 100%;
+  border: 1.5px dashed var(--line);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+.ed-photo-frame.has {
+  border-style: solid;
+}
+.ed-photo-frame.over {
+  border-color: var(--dopamine);
+  background: color-mix(in srgb, var(--dopamine) 10%, transparent);
+}
+.ed-photo-frame img {
+  display: block;
+  width: 100%;
+}
+.ed-photo-empty {
+  display: grid;
+  place-items: center;
+  height: 140px;
+  font-size: 34px;
+  color: var(--ink-soft);
+}
+.ed-photo-caption {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font: italic 15px var(--font-body);
+  text-align: center;
+  padding: 8px 0 0;
+}
+.ed-photo-caption:focus {
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ed-flick,
+  .ed-block-moment,
+  .ed-meter.full i {
+    animation: none;
+  }
+}
+.ed-toolbar [data-tip] {
+  position: relative;
+}
+.ed-toolbar [data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-3px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--bg);
+  font: 600 11px var(--font-ui);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease 0s, transform 0.15s ease 0s;
+  z-index: 9;
+}
+.ed-toolbar [data-tip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%);
+  transition-delay: 0.25s;
+}
+@container (min-width: 821px) {
+  .ed-tb-group:nth-child(2) [data-tip]::after {
+    display: none;
   }
 }

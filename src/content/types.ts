@@ -19,6 +19,8 @@ export type Block =
   | { type: 'moment'; text: string }
   | { type: 'steps'; intro?: string; items: string[] }
   | { type: 'signature'; text: string }
+  /** `src` is a URL, or `idb:<key>` for a photo saved in this browser (see photos.ts). */
+  | { type: 'photo'; src: string; caption: string }
 
 export interface PostTheme {
   /** 'light' = dark text on a pale card, 'dark' = pale text on a dark card */
@@ -66,3 +68,6 @@ export function wordCount(post: Post): number {
   }
   return n
 }
+
+/** The scene a post opens on. */
+export const firstFocus = (post: Post) => post.blocks.find((b) => b.type === 'cue')?.focus ?? 'default'

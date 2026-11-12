@@ -52,16 +52,30 @@
 }
 .post-card {
   display: flex;
+  position: relative;
+  touch-action: pan-y;
+  user-select: none;
+  will-change: transform;
   gap: 16px;
   text-decoration: none;
   border-radius: 16px;
   padding: 12px;
   margin: 0 -12px;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  transform-style: preserve-3d;
 }
 .post-card:hover {
   background: var(--surface-2);
-  transform: translateY(-2px);
+}
+.post-card.tossing {
+  transition: background 0.2s ease, box-shadow 0.25s ease;
+  z-index: 3;
+  cursor: grabbing;
+  background: var(--surface-2);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.3);
+}
+.sides {
+  perspective: 900px;
 }
 .post-card-art {
   flex: 0 0 92px;
@@ -69,23 +83,13 @@
   border-radius: 12px;
   position: relative;
   overflow: hidden;
+  transform: translateZ(18px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
 }
-.scene-blue-room .post-card-art {
-  background: linear-gradient(#4a80c8, #2c548f 70%, #22406f 70%);
-}
-.scene-blue-room .post-card-art::after {
-  content: '';
-  position: absolute;
-  left: 24px;
-  top: 18px;
-  width: 44px;
-  height: 40px;
-  background: linear-gradient(#a9dcff, #fff1cf);
-  border: 4px solid #f4f1ea;
-  border-radius: 3px;
-}
-.scene-cave .post-card-art {
-  background: radial-gradient(circle at 50% 85%, #ffb347 0, #8a3b17 22%, #24130c 55%, #0b0605 100%);
+.post-card-art .scene-thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
 }
 .post-card-body {
   display: flex;
@@ -113,4 +117,109 @@
 .home-foot a {
   color: var(--ink-soft);
   text-decoration: none;
+}
+
+/* ---------- the door into a post ---------- */
+.door {
+  position: fixed;
+  z-index: 50;
+  overflow: hidden;
+  perspective: 1400px;
+  background: #0d0a10;
+  transition: left 0.5s cubic-bezier(0.7, 0, 0.2, 1), top 0.5s cubic-bezier(0.7, 0, 0.2, 1), width 0.5s cubic-bezier(0.7, 0, 0.2, 1),
+    height 0.5s cubic-bezier(0.7, 0, 0.2, 1), border-radius 0.5s ease;
+}
+.door-room {
+  position: absolute;
+  inset: 0;
+  transform: scale(1.18);
+  transition: transform 1s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.door-open .door-room {
+  transform: scale(1);
+}
+.door-room .scene {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@media (min-width: 1000px) {
+  .door-grow .door-room .scene,
+  .door-open .door-room .scene {
+    position: absolute;
+    left: -33%;
+    width: 133%;
+  }
+}
+.door-leaf {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: linear-gradient(160deg, #3b2a2f, #1c1418);
+  border: 2px solid color-mix(in srgb, var(--chem) 70%, transparent);
+  transition: transform 0.8s cubic-bezier(0.5, 0, 0.2, 1);
+  backface-visibility: hidden;
+}
+.door.chem-dopamine {
+  --chem: var(--dopamine);
+}
+.door.chem-oxytocin {
+  --chem: var(--oxytocin);
+}
+.door-leaf.l {
+  left: 0;
+  transform-origin: left center;
+}
+.door-leaf.r {
+  right: 0;
+  transform-origin: right center;
+}
+.door-start .door-leaf {
+  opacity: 0;
+}
+.door-grow .door-leaf {
+  opacity: 1;
+}
+.door-open .door-leaf.l {
+  transform: rotateY(-105deg);
+}
+.door-open .door-leaf.r {
+  transform: rotateY(105deg);
+}
+.door-knob {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--chem);
+  box-shadow: 0 0 14px var(--chem);
+}
+.l .door-knob {
+  right: 22px;
+}
+.r .door-knob {
+  left: 22px;
+}
+.door-title {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  font: 800 clamp(34px, 7vw, 72px) / 1 var(--font-display);
+  color: #fff;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.door-grow .door-title {
+  opacity: 1;
+}
+.door-open .door-title {
+  opacity: 0;
+  transition-duration: 0.5s;
 }

@@ -1,4 +1,5 @@
-import { cameraStyle, ramp, useClock, type Camera, type SceneProps } from './camera'
+import { pianoNote, tick, whoosh } from '../sound'
+import { cameraStyle, ramp, useClock, usePokes, type Camera, type SceneProps } from './camera'
 
 const cameras: Record<string, Camera> = {
   fire: { x: 800, y: 470, zoom: 1.15 },
@@ -8,6 +9,8 @@ const cameras: Record<string, Camera> = {
   chain: { x: 900, y: 440, zoom: 1.05 },
   steps: { x: 800, y: 480, zoom: 1 },
   finale: { x: 800, y: 460, zoom: 0.88 },
+  /** The end of the post: all three figures in view, for handing over the guitar. */
+  gift: { x: 800, y: 340, zoom: 0.8 },
   default: { x: 800, y: 450, zoom: 1 },
 }
 
@@ -47,14 +50,49 @@ function chainPoints(n: number) {
 }
 const chain = chainPoints(64)
 
-function Figure({ x, name, flute, sync }: { x: number; name: string; flute: boolean; sync: boolean }) {
+interface FigureProps {
+  x: number
+  name: string
+  flute: boolean
+  sync: boolean
+  onClick?: () => void
+  jumps: number
+  /** Holding the reader's guitar. */
+  playing: boolean
+  /** The guitar is being dragged over them. */
+  welcoming: boolean
+}
+
+function Figure({ x, name, flute, sync, onClick, jumps, playing, welcoming }: FigureProps) {
   return (
-    <g transform={`translate(${x} 0)`}>
+    <g
+      transform={`translate(${x} 0)`}
+      onClick={onClick}
+      data-gift-target={name}
+      className={[onClick && 'pokeable', playing && 'playing', welcoming && 'welcoming'].filter(Boolean).join(' ')}
+    >
+      <g key={jumps} className={jumps ? 'jump' : ''}>
       <g className={sync ? 'dancer synced' : 'dancer'} style={{ animationDelay: sync ? '0s' : `${(x % 7) * -0.13}s` }}>
         <circle cx="0" cy="255" r="16" />
-        <path d="M0 271 V340 M0 340 L-22 392 M0 340 L24 390 M0 292 L-34 270 M0 292 L34 312" />
-        {flute && <path d="M-34 270 L-70 248" className="flute" />}
+        {playing ? (
+          <>
+            <path d="M0 271 V340 M0 340 L-22 392 M0 340 L24 390 M0 292 L-30 300 L-46 288" />
+            <g className="held-guitar">
+              <path d="M-4 312 L-58 280" strokeWidth="5" stroke="#5a3216" />
+              <ellipse cx="6" cy="318" rx="19" ry="15" fill="#d98a3d" stroke="none" transform="rotate(-30 6 318)" />
+              <circle cx="2" cy="315" r="4" fill="#3a2010" stroke="none" />
+            </g>
+            <path d="M0 292 L22 310 L12 318" className="strum-arm" />
+          </>
+        ) : (
+          <>
+            <path d="M0 271 V340 M0 340 L-22 392 M0 340 L24 390 M0 292 L-34 270 M0 292 L34 312" />
+            {flute && <path d="M-34 270 L-70 248" className="flute" />}
+          </>
+        )}
       </g>
+      </g>
+      {onClick && <rect x="-50" y="230" width="100" height="210" fill="transparent" stroke="none" />}
       <text x="0" y="432" textAnchor="middle" className="figure-name">
         {name}
       </text>
@@ -62,8 +100,18 @@ function Figure({ x, name, flute, sync }: { x: number; name: string; flute: bool
   )
 }
 
-export default function CaveScene({ focus, progress }: SceneProps) {
+export default function CaveScene({ focus, progress, interactive, gift, giftHover }: SceneProps) {
   const cam = cameras[focus] ?? cameras.default
+  const [pokes, poke] = usePokes()
+  const tap = (name: string, extra?: () => void) =>
+    interactive
+      ? () => {
+          poke(name)
+          extra?.()
+        }
+      : undefined
+  /** Clickables in a view that isn't showing stay asleep. */
+  const hidden = (shown: boolean) => ({ 'data-asleep': shown ? undefined : true })
   const t = useClock(focus === 'synchrony' || focus === 'finale')
   const on = (...fs: string[]) => (fs.includes(focus) ? 1 : 0)
   const caveDim = focus === 'piano' || focus === 'chain' ? 0.12 : focus === 'steps' ? 0.3 : 1
@@ -91,22 +139,40 @@ export default function CaveScene({ focus, progress }: SceneProps) {
       <g style={cameraStyle(cam)}>
         <rect x="-900" y="-700" width="3400" height="2300" fill="url(#cv-bg)" />
 
-        <g opacity={caveDim} className="fade">
+        <g opacity={caveDim} className="fade" {...hidden(caveDim === 1)}>
           {/* cave mouth */}
           <path d="M-900 -700 H2500 V1600 H-900 Z M140 900 C 160 380, 420 110, 800 100 C 1180 110, 1440 380, 1460 900 Z" fill="#120a07" fillRule="evenodd" />
           <path d="M140 900 C 160 380, 420 110, 800 100 C 1180 110, 1440 380, 1460 900" fill="none" stroke="#3a2216" strokeWidth="18" />
           {/* painted figures */}
           <g className="ochre">
             {figures.map((f) => (
-              <Figure key={f.name} {...f} sync={focus === 'finale' || (focus === 'synchrony' && sync > 0.9)} />
+              <Figure
+                key={f.name}
+                {...f}
+                sync={!!gift || focus === 'finale' || (focus === 'synchrony' && sync > 0.9)}
+                jumps={pokes[f.name] ?? 0}
+                playing={gift === f.name}
+                welcoming={giftHover === f.name}
+                onClick={tap(f.name, tick)}
+              />
             ))}
           </g>
           {/* fire */}
           <ellipse cx="800" cy="760" rx="420" ry="260" fill="url(#cv-fire)" className="fire-glow" />
+          <g key={`fire${pokes.fire ?? 0}`} className={`${interactive ? 'pokeable' : ''} ${pokes.fire ? 'flare' : ''}`} onClick={tap('fire', whoosh)}>
           <g className="flames">
             <path d="M800 600 C 760 680, 740 720, 770 790 L830 790 C 860 720, 840 680, 800 600 Z" fill="#ff8a2b" />
             <path d="M770 650 C 740 710, 735 750, 760 790 L800 790 C 790 740, 790 700, 770 650 Z" fill="#ffb347" />
             <path d="M835 660 C 860 710, 860 750, 840 790 L805 790 C 815 740, 815 700, 835 660 Z" fill="#ffd27a" />
+          </g>
+          {pokes.fire ? (
+            <g className="embers">
+              {Array.from({ length: 10 }, (_, i) => (
+                <circle key={i} cx={760 + ((i * 37) % 90)} cy={700} r={3 + (i % 3)} fill="#ffcf7a" style={{ animationDelay: `${i * 0.06}s`, ['--drift' as string]: `${((i * 53) % 120) - 60}px` }} />
+              ))}
+            </g>
+          ) : null}
+          <rect x="720" y="590" width="160" height="210" fill="transparent" />
           </g>
           <path d="M720 800 L880 780 M730 780 L870 805" stroke="#4a2a18" strokeWidth="16" strokeLinecap="round" />
         </g>
@@ -137,7 +203,7 @@ export default function CaveScene({ focus, progress }: SceneProps) {
         </g>
 
         {/* an international piano */}
-        <g opacity={on('piano')} className="fade">
+        <g opacity={on('piano')} className="fade" {...hidden(focus === 'piano')}>
           {Object.values(cities).map((c) => (
             <g key={c.label}>
               <circle cx={c.x} cy={c.y} r={c.label === 'Warsaw' ? 12 : 8} fill={c.label === 'Warsaw' ? '#ef6f9a' : '#ffe1c4'} />
@@ -162,23 +228,46 @@ export default function CaveScene({ focus, progress }: SceneProps) {
           </text>
           <g transform="translate(260 760)">
             {Array.from({ length: 22 }, (_, i) => (
-              <rect key={i} x={i * 49} y="0" width="47" height="150" rx="4" fill="#f7efe4" />
+              <rect
+                key={`${i}-${pokes[`w${i}`] ?? 0}`}
+                x={i * 49}
+                y="0"
+                width="47"
+                height="150"
+                rx="4"
+                fill="#f7efe4"
+                className={`${interactive ? 'pokeable' : ''} ${pokes[`w${i}`] ? 'key-press' : ''}`}
+                onClick={tap(`w${i}`, () => pianoNote(i))}
+              />
             ))}
             {/* black keys sit between C-D, D-E, F-G, G-A, A-B */}
             {Array.from({ length: 21 }, (_, i) =>
               [0, 1, 3, 4, 5].includes(i % 7) ? (
-                <rect key={i} x={i * 49 + 33} y="0" width="30" height="92" rx="3" fill="#1d1210" />
+                <rect
+                  key={`${i}-${pokes[`b${i}`] ?? 0}`}
+                  x={i * 49 + 33}
+                  y="0"
+                  width="30"
+                  height="92"
+                  rx="3"
+                  fill="#1d1210"
+                  className={`${interactive ? 'pokeable' : ''} ${pokes[`b${i}`] ? 'key-press' : ''}`}
+                  onClick={tap(`b${i}`, () => pianoNote(i, true))}
+                />
               ) : null,
             )}
           </g>
         </g>
 
         {/* the Baltic Way */}
-        <g opacity={on('chain')} className="fade">
-          {chain.map((pt, i) => {
-            const lit = ramp(progress * 1.25, i / chain.length, i / chain.length + 0.02)
-            return <circle key={i} cx={pt.x} cy={pt.y} r={5} fill="#ffd38a" opacity={0.15 + lit * 0.85} />
-          })}
+        <g opacity={on('chain')} className="fade" {...hidden(focus === 'chain')}>
+          <g key={`wave${pokes.chain ?? 0}`} className={`${interactive ? 'pokeable' : ''} ${pokes.chain ? 'wave' : ''}`} onClick={tap('chain')}>
+            {chain.map((pt, i) => {
+              const lit = ramp(progress * 1.25, i / chain.length, i / chain.length + 0.02)
+              return <circle key={i} cx={pt.x} cy={pt.y} r={5} fill="#ffd38a" opacity={0.15 + lit * 0.85} style={{ animationDelay: `${i * 0.02}s` }} />
+            })}
+            <path d={`M${baltic.map((b) => `${b.x} ${b.y}`).join(' L')}`} stroke="transparent" strokeWidth="60" fill="none" />
+          </g>
           {baltic.map((c) => (
             <g key={c.label}>
               <circle cx={c.x} cy={c.y} r="14" fill="#ef6f9a" />
@@ -193,14 +282,24 @@ export default function CaveScene({ focus, progress }: SceneProps) {
         </g>
 
         {/* three steps */}
-        <g opacity={on('steps')} className="fade">
+        <g opacity={on('steps')} className="fade" {...hidden(focus === 'steps')}>
           {['Preservation', 'Identity', 'Mobilization'].map((label, i) => {
             const k = ramp(progress, 0.15 + i * 0.22, 0.3 + i * 0.22)
             const h = 60 + k * 170
             return (
               <g key={label}>
                 <ellipse cx={520 + i * 280} cy={760 - h} rx="110" ry="60" fill="url(#cv-pink)" opacity={k} />
-                <rect x={470 + i * 280} y={760 - h} width="100" height={h} rx="10" fill={k > 0.99 ? '#ef6f9a' : '#6b3a2a'} className="fill-fade" />
+                <rect
+                  key={`p${pokes[label] ?? 0}`}
+                  x={470 + i * 280}
+                  y={760 - h}
+                  width="100"
+                  height={h}
+                  rx="10"
+                  fill={k > 0.99 ? '#ef6f9a' : '#6b3a2a'}
+                  className={`fill-fade ${interactive ? 'pokeable' : ''} ${pokes[label] ? 'boing' : ''}`}
+                  onClick={tap(label, tick)}
+                />
                 <text x={520 + i * 280} y={800} textAnchor="middle" className="map-label center">
                   {i + 1}. {label}
                 </text>

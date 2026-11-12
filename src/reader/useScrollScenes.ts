@@ -26,7 +26,8 @@ export function useScrollScenes(count: number) {
         const r = el.getBoundingClientRect()
         if (r.top <= line) {
           index = i
-          progress = Math.min(1, Math.max(0, (line - r.top) / r.height))
+          // A hidden preview frame has zero-height sections.
+          progress = r.height > 0 ? Math.min(1, Math.max(0, (line - r.top) / r.height)) : 0
         }
       })
       const max = document.documentElement.scrollHeight - window.innerHeight

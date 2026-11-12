@@ -29,6 +29,16 @@ stage behind the text for everything after it, until the next cue.
 Each post's `scene` picks its room (`src/scenes/BlueRoomScene.tsx`, `src/scenes/CaveScene.tsx`). A room reads
 `focus` (which cue is active) and `progress` (0–1 through that section) to move its camera and animate.
 
+## Things worth knowing
+
+- Photos are stored in this browser's IndexedDB (`src/content/photos.ts`); a photo block only holds `idb:<key>`.
+  They move online with the backend stage.
+- Scenes take `interactive` (on in the reader): anything with the `pokeable` class reacts to clicks; everything
+  else in a room ignores the pointer. Sounds are synthesized in `src/sound.ts`.
+- Each room's end-of-post gift is set in `src/reader/gifts.ts` (the cave hands over a guitar; the Blue Room
+  leaves a spark). Room music lives in `src/music.ts` and only starts after the reader's first click or key press.
+- Editor undo (⌘Z / ⇧⌘Z) works across blocks and is recorded in the replay as a `doc` op.
+
 ## Tracker rules
 
 Encoded in `src/tracker/rules.ts` from the NFW handout; roster in `src/tracker/roster.ts`.

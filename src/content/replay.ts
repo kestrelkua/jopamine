@@ -25,6 +25,8 @@ export type Op =
   | { t: number; k: 'ins'; after: string | null; block: EBlock }
   | { t: number; k: 'del'; id: string }
   | { t: number; k: 'mv'; id: string; after: string | null }
+  /** Undo and redo jump the whole document back or forward. */
+  | { t: number; k: 'doc'; doc: Doc }
 
 export interface Replay {
   start: Doc
@@ -76,6 +78,8 @@ export function applyOp(doc: Doc, op: OpInput): Doc {
       if (!block) return doc
       return { ...doc, blocks: insertAfter(doc.blocks.filter((b) => b.id !== op.id), op.after, block) }
     }
+    case 'doc':
+      return op.doc
   }
 }
 
@@ -86,6 +90,17 @@ export function replayDuration(replay: Replay): number {
   let total = 0
   for (let i = 1; i < replay.ops.length; i++) total += Math.min(MAX_PAUSE, replay.ops[i].t - replay.ops[i - 1].t)
   return total
+}
+
+/** Just the last `ms` of writing (pauses shortened the same way playback does). */
+export function lastStretch(replay: Replay, ms: number): Replay {
+  let i = replay.ops.length - 1
+  let acc = 0
+  while (i > 0 && acc < ms) {
+    acc += Math.min(MAX_PAUSE, replay.ops[i].t - replay.ops[i - 1].t)
+    i--
+  }
+  return { start: docAt(replay, Math.max(0, i)), ops: replay.ops.slice(Math.max(0, i)) }
 }
 
 /** The document as it looked after the first `count` ops. */

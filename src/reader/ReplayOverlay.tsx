@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePhoto } from '../content/photos'
 import { applyOp, docAt, MAX_PAUSE, type Doc, type Replay } from '../content/replay'
 
 const speeds = [1, 4, 16]
 
 /** Plays a post being written. Reports the latest scene cue so the room can follow along. */
-export default function ReplayOverlay({ replay, onClose, onFocus }: { replay: Replay; onClose: () => void; onFocus: (focus: string) => void }) {
+export default function ReplayOverlay({
+  replay,
+  onClose,
+  onFocus,
+  initialSpeed = 4,
+}: {
+  replay: Replay
+  onClose: () => void
+  onFocus: (focus: string) => void
+  initialSpeed?: number
+}) {
   // Playback time (ms) at which each op happens, with long pauses shortened.
   const times = useMemo(() => {
     const out: number[] = []
@@ -19,7 +30,7 @@ export default function ReplayOverlay({ replay, onClose, onFocus }: { replay: Re
 
   const [clock, setClock] = useState(0)
   const [playing, setPlaying] = useState(true)
-  const [speed, setSpeed] = useState(4)
+  const [speed, setSpeed] = useState(initialSpeed)
   const cache = useRef<{ count: number; doc: Doc }>({ count: 0, doc: replay.start })
   const caretRef = useRef<HTMLDivElement>(null)
 
@@ -89,6 +100,8 @@ export default function ReplayOverlay({ replay, onClose, onFocus }: { replay: Re
               return wrap(<p className="para">{b.text}{caret}</p>)
             case 'signature':
               return wrap(<p className="signature">{b.text}{caret}</p>)
+            case 'photo':
+              return wrap(<ReplayPhoto src={b.src} caption={b.caption} />)
             case 'steps':
               return wrap(
                 <ol className="steps">
@@ -125,4 +138,9 @@ export default function ReplayOverlay({ replay, onClose, onFocus }: { replay: Re
       </div>
     </div>
   )
+}
+
+function ReplayPhoto({ src, caption }: { src: string; caption: string }) {
+  const url = usePhoto(src)
+  return <figure className="photo">{url ? <img src={url} alt={caption} /> : <div className="photo-missing" />}</figure>
 }

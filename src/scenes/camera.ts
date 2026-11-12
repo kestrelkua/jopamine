@@ -41,4 +41,17 @@ export function useClock(active: boolean): number {
 export interface SceneProps {
   focus: string
   progress: number
+  /** Objects in the room react to clicks (only on the reading page). */
+  interactive?: boolean
+  /** Who the reader handed their gift to (e.g. the guitar in the cave). */
+  gift?: string | null
+  /** Who the gift is being dragged over right now. */
+  giftHover?: string | null
+}
+
+/** A counter that goes up on every poke; use it as a React key to restart an animation. */
+export function usePokes() {
+  const [pokes, setPokes] = useState<Record<string, number>>({})
+  const poke = (name: string) => setPokes((p) => ({ ...p, [name]: (p[name] ?? 0) + 1 }))
+  return [pokes, poke] as const
 }

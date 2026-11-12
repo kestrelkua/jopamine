@@ -86,6 +86,12 @@
   max-width: 680px;
   margin: 0 auto;
   padding: 0 16px;
+  /* the gaps between cards belong to the room behind */
+  pointer-events: none;
+}
+.column .hero > *,
+.column .card {
+  pointer-events: auto;
 }
 .hero {
   min-height: 100vh;
@@ -265,12 +271,63 @@
 /* ---------- ending ---------- */
 .ending {
   position: relative;
-  padding: 20vh 0 6vh;
+  z-index: 1;
+  padding: 20vh 16px 6vh;
+  /* the room behind stays clickable; only the gift and links catch the pointer */
+  pointer-events: none;
+}
+.ending .spark,
+.ending .gift-item,
+.ending .end-links {
+  pointer-events: auto;
 }
 .spark-area {
   position: relative;
   height: 70vh;
+}
+.gift-line {
+  margin: 0;
+  text-align: center;
+  font: italic 500 clamp(20px, 3vw, 26px) var(--font-display);
+  color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
+  transition: opacity 0.8s ease;
+}
+.gift-line.gone {
+  opacity: 0;
+}
+.gift {
+  height: 70vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+.gift.given .gift-line {
+  animation: slidein 0.6s ease;
+}
+.gift-item {
+  all: unset;
+  cursor: grab;
   touch-action: none;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.5));
+  transition: transform 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+  animation: gift-sway 3s ease-in-out infinite;
+}
+.gift-item.dragging {
+  cursor: grabbing;
+  transition: none;
+  animation: none;
+  position: relative;
+  z-index: 30;
+}
+.gift-item:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+@keyframes gift-sway {
+  50% { transform: rotate(-6deg) translateY(-6px); }
 }
 .spark {
   all: unset;
@@ -425,4 +482,68 @@
   .scene-section {
     padding: 30vh 0;
   }
+}
+
+/* ---------- lit moments ---------- */
+.lit-unit {
+  opacity: 0.16;
+  transition: opacity 0.35s ease, text-shadow 0.35s ease;
+  text-shadow: none;
+}
+.lit-unit.on {
+  opacity: 1;
+  text-shadow: 0 0 30px color-mix(in srgb, var(--chem) 60%, transparent);
+}
+.lit-text {
+  text-shadow: none;
+}
+
+/* ---------- photos ---------- */
+.photo {
+  margin: 22px -8px;
+  padding: 10px 10px 14px;
+  background: #fffdf8;
+  border-radius: 6px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  transform: rotate(-0.8deg);
+}
+.photo:nth-of-type(2n) {
+  transform: rotate(0.9deg);
+}
+.photo img {
+  display: block;
+  width: 100%;
+  border-radius: 3px;
+}
+.photo figcaption {
+  font: italic 15px var(--font-body);
+  color: #4a4a55;
+  text-align: center;
+  margin-top: 10px;
+}
+.photo-missing {
+  aspect-ratio: 4 / 3;
+  background: #e9e3d8;
+}
+@media (min-width: 1000px) {
+  /* the gift waits where the cards were, so it gets carried across to the room */
+  .ending .gift {
+    margin: 0 4vw 0 auto;
+    max-width: 600px;
+    justify-content: flex-end;
+    padding-bottom: 6vh;
+  }
+}
+@media (max-width: 999px) {
+  /* above the figures, so it's carried down to them */
+  .ending .gift {
+    justify-content: flex-start;
+    gap: 14px;
+  }
+}
+.toggle.waiting {
+  animation: music-waiting 1.8s ease-in-out infinite;
+}
+@keyframes music-waiting {
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--chem) 35%, transparent); }
 }

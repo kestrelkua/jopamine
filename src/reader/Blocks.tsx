@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { usePhoto } from '../content/photos'
 import type { Block, Note } from '../content/types'
 
 /** Fades its children in the first time they scroll into view. */
@@ -69,6 +70,57 @@ function Paragraph({ text, notes = [], commentary }: { text: string; notes?: Not
   )
 }
 
+/** Lights its words (or, for a single word, its letters) one by one as it scrolls up the screen. */
+function LitText({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  const units = text.trim().includes(' ') ? text.split(/(\s+)/) : Array.from(text)
+  const count = units.filter((u) => u.trim()).length
+  const [lit, setLit] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setLit(count)
+      return
+    }
+    const measure = () => {
+      const el = ref.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const p = (window.innerHeight * 0.85 - r.top) / (window.innerHeight * 0.3)
+      setLit(Math.max(0, Math.min(count, Math.ceil(p * count))))
+    }
+    measure()
+    window.addEventListener('scroll', measure, { passive: true })
+    return () => window.removeEventListener('scroll', measure)
+  }, [count])
+  let n = 0
+  return (
+    <p className="moment lit-text" ref={ref} aria-label={text}>
+      {units.map((u, i) =>
+        u.trim() ? (
+          <span key={i} className={`lit-unit ${n++ < lit ? 'on' : ''}`} aria-hidden="true">
+            {u}
+          </span>
+        ) : (
+          u
+        ),
+      )}
+    </p>
+  )
+}
+
+function Photo({ src, caption }: { src: string; caption: string }) {
+  const url = usePhoto(src)
+  if (!url) return null
+  return (
+    <Reveal>
+      <figure className="photo">
+        <img src={url} alt={caption} loading="lazy" />
+        {caption && <figcaption>{caption}</figcaption>}
+      </figure>
+    </Reveal>
+  )
+}
+
 export function BlockView({ block, commentary }: { block: Block; commentary: boolean }) {
   switch (block.type) {
     case 'heading':
@@ -82,7 +134,7 @@ export function BlockView({ block, commentary }: { block: Block; commentary: boo
     case 'moment':
       return (
         <Reveal className="moment-wrap">
-          <p className="moment">{block.text}</p>
+          <LitText text={block.text} />
         </Reveal>
       )
     case 'steps':
@@ -102,6 +154,8 @@ export function BlockView({ block, commentary }: { block: Block; commentary: boo
           </ol>
         </Reveal>
       )
+    case 'photo':
+      return <Photo src={block.src} caption={block.caption} />
     case 'signature':
       return (
         <Reveal>

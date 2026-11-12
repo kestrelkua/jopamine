@@ -13,6 +13,14 @@ function tipsSeen() {
 }
 
 interface Props {
+  canUndo: boolean
+  canRedo: boolean
+  onUndo: () => void
+  onRedo: () => void
+  typewriter: boolean
+  onTypewriter: () => void
+  sound: boolean
+  onSound: () => void
   hasSelection: boolean
   onAdd: (type: BlockType) => void
   onNote: () => void
@@ -21,7 +29,7 @@ interface Props {
 }
 
 /** Always-visible versions of the slash menu and the selection bubble, plus the shortcut card. */
-export default function Toolbar({ hasSelection, onAdd, onNote, onSceneHere, onMoment }: Props) {
+export default function Toolbar({ canUndo, canRedo, onUndo, onRedo, typewriter, onTypewriter, sound, onSound, hasSelection, onAdd, onNote, onSceneHere, onMoment }: Props) {
   const [open, setOpen] = useState(false)
   const [seen, setSeen] = useState(tipsSeen)
   const ref = useRef<HTMLDivElement>(null)
@@ -44,25 +52,41 @@ export default function Toolbar({ hasSelection, onAdd, onNote, onSceneHere, onMo
   return (
     <div className="ed-toolbar" role="toolbar" aria-label="Formatting">
       <div className="ed-tb-group">
+        <button onMouseDown={keep} onClick={onUndo} disabled={!canUndo} aria-label="Undo" data-tip="Undo (⌘Z)">
+          <span className="ed-tb-icon">↶</span>
+        </button>
+        <button onMouseDown={keep} onClick={onRedo} disabled={!canRedo} aria-label="Redo" data-tip="Redo (⇧⌘Z)">
+          <span className="ed-tb-icon">↷</span>
+        </button>
+      </div>
+      <div className="ed-tb-group">
         {blockTypes.map((t) => (
-          <button key={t.type} onMouseDown={keep} onClick={() => onAdd(t.type)} title={`Add ${t.name.toLowerCase()}`}>
+          <button key={t.type} onMouseDown={keep} onClick={() => onAdd(t.type)} data-tip={t.name}>
             <span className="ed-tb-icon">{t.icon}</span>
             <span className="ed-tb-name">{t.name}</span>
           </button>
         ))}
       </div>
       <div className="ed-tb-group">
-        <button onMouseDown={keep} onClick={onNote} disabled={!hasSelection} title="Note on the selected words">
+        <button onMouseDown={keep} onClick={onNote} disabled={!hasSelection} data-tip="Note on the selected words">
           <span className="ed-tb-icon">✎</span>
           <span className="ed-tb-name">Note</span>
         </button>
-        <button onMouseDown={keep} onClick={onSceneHere} disabled={!hasSelection} title="Start a scene at the selection">
+        <button onMouseDown={keep} onClick={onSceneHere} disabled={!hasSelection} data-tip="Start a scene at the selection">
           <span className="ed-tb-icon">◆</span>
           <span className="ed-tb-name">Here</span>
         </button>
-        <button onMouseDown={keep} onClick={onMoment} disabled={!hasSelection} title="Lift the selected words into a moment">
+        <button onMouseDown={keep} onClick={onMoment} disabled={!hasSelection} data-tip="Lift the selected words into a moment">
           <span className="ed-tb-icon">!</span>
           <span className="ed-tb-name">Lift</span>
+        </button>
+      </div>
+      <div className="ed-tb-end">
+        <button onMouseDown={keep} className={typewriter ? 'on' : ''} onClick={onTypewriter} aria-pressed={typewriter} aria-label="Typewriter mode" data-tip="Typewriter mode (⇧⌘Enter)">
+          <span className="ed-tb-icon">◎</span>
+        </button>
+        <button onMouseDown={keep} className={sound ? '' : 'off'} onClick={onSound} aria-pressed={sound} aria-label="Sound" data-tip="Sound">
+          <span className="ed-tb-icon">♪</span>
         </button>
       </div>
       <div className="ed-tips-wrap" ref={ref}>
@@ -95,9 +119,23 @@ export default function Toolbar({ hasSelection, onAdd, onNote, onSceneHere, onMo
               </dt>
               <dd>line break</dd>
               <dt>
+                <kbd>⌘</kbd> <kbd>Z</kbd>
+              </dt>
+              <dd>undo, anywhere (add ⇧ to redo)</dd>
+              <dt>
+                <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>Enter</kbd>
+              </dt>
+              <dd>typewriter mode, Esc to leave</dd>
+              <dt>Drop</dt>
+              <dd>a picture anywhere to add a photo</dd>
+              <dt>
                 <span className="rec-dot" />
               </dt>
-              <dd>everything you type is saved for the replay</dd>
+              <dd>everything you type is saved for the replay. Click it to watch your last minute</dd>
+              <dt>
+                <span className="ed-tips-glyph">300 / 800</span>
+              </dt>
+              <dd>click to change your word goal</dd>
             </dl>
           </div>
         )}

@@ -1,4 +1,5 @@
-import { cameraStyle, ramp, type Camera, type SceneProps } from './camera'
+import { whoosh } from '../sound'
+import { cameraStyle, ramp, usePokes, type Camera, type SceneProps } from './camera'
 
 const cameras: Record<string, Camera> = {
   photos: { x: 1000, y: 380, zoom: 1.15 },
@@ -38,8 +39,21 @@ function Cat({ x, y, s = 1, flip = false }: { x: number; y: number; s?: number; 
   )
 }
 
-export default function BlueRoomScene({ focus, progress }: SceneProps) {
+export default function BlueRoomScene({ focus, progress, interactive }: SceneProps) {
   const cam = cameras[focus] ?? cameras.default
+  const [pokes, poke] = usePokes()
+  /** Props for something in the room that reacts to a click with the CSS animation `anim`. */
+  const poked = (name: string, anim: string, extra?: () => void) => ({
+    className: `${interactive ? 'pokeable' : ''} ${pokes[name] ? anim : ''}`,
+    onClick: interactive
+      ? () => {
+          poke(name)
+          extra?.()
+        }
+      : undefined,
+  })
+  /** Clickables in a view that isn't showing stay asleep. */
+  const hidden = (shown: boolean) => ({ 'data-asleep': shown ? undefined : true })
   const on = (f: string) => (focus === f ? 1 : 0)
   // Photos come down near the end of the first scene and stay down after it.
   const photosDown = focus === 'photos' ? progress : 1
@@ -120,20 +134,29 @@ export default function BlueRoomScene({ focus, progress }: SceneProps) {
             })}
           </g>
         </g>
+        {interactive && <rect x="560" y="110" width="480" height="400" fill="transparent" {...poked('window', '', whoosh)} />}
         <rect x="560" y="110" width="480" height="400" rx="6" fill="none" stroke="#f4f1ea" strokeWidth="16" />
         <path d="M800 110 V510 M560 310 H1040" stroke="#f4f1ea" strokeWidth="10" />
-        <path className="curtain curtain-l" d="M520 90 C 560 240, 520 420, 590 560 L 500 560 Z" fill="#e8eef9" opacity="0.85" />
-        <path className="curtain curtain-r" d="M1080 90 C 1040 240, 1080 420, 1010 560 L 1100 560 Z" fill="#e8eef9" opacity="0.85" />
+        <g key={`gust${pokes.window ?? 0}`} className={pokes.window ? 'gust' : ''}>
+          <path className="curtain curtain-l" d="M520 90 C 560 240, 520 420, 590 560 L 500 560 Z" fill="#e8eef9" opacity="0.85" />
+          <path className="curtain curtain-r" d="M1080 90 C 1040 240, 1080 420, 1010 560 L 1100 560 Z" fill="#e8eef9" opacity="0.85" />
+        </g>
 
         {/* sunlight boxes on the carpet */}
         <g opacity={sun} className="fade" style={{ transform: `translateX(${sunShift}px)`, transition: 'transform .3s linear' }}>
           <polygon points="560,660 790,660 860,860 600,860" fill="#ffe9a6" opacity="0.55" />
           <polygon points="810,660 1040,660 1130,860 880,860" fill="#ffe9a6" opacity="0.55" />
         </g>
-        <g opacity={focus === 'sunlight' ? 1 : 0} className="fade cats">
-          <Cat x={700} y={770} s={0.9} />
-          <Cat x={980} y={800} s={1.05} flip />
-          <Cat x={860} y={720} s={0.7} />
+        <g opacity={focus === 'sunlight' ? 1 : 0} className="fade cats" {...hidden(focus === 'sunlight')}>
+          {[
+            { x: 700, y: 770, s: 0.9 },
+            { x: 980, y: 800, s: 1.05, flip: true },
+            { x: 860, y: 720, s: 0.7 },
+          ].map((c, i) => (
+            <g key={`cat${i}-${pokes[`cat${i}`] ?? 0}`} {...poked(`cat${i}`, 'hop')}>
+              <Cat {...c} />
+            </g>
+          ))}
         </g>
 
         {/* shelves + baby photos */}
@@ -143,19 +166,21 @@ export default function BlueRoomScene({ focus, progress }: SceneProps) {
           const down = ramp(photosDown, 0.62 + i * 0.07, 0.72 + i * 0.07)
           return (
             <g key={i} style={{ transformOrigin: `${f.x + f.w / 2}px 326px`, transform: `scaleY(${1 - down * 0.9})`, transition: 'transform .4s ease' }}>
+              <g key={pokes[`photo${i}`] ?? 0} {...poked(`photo${i}`, 'swing')} style={{ transformOrigin: `${f.x + f.w / 2}px 326px` }}>
               {focus === 'photos' && down < 1 && (
                 <rect x={f.x - 14} y={326 - f.h - 14} width={f.w + 28} height={f.h + 28} fill="url(#br-glow)" opacity={0.7} />
               )}
               <rect x={f.x} y={326 - f.h} width={f.w} height={f.h} fill="#fdf6e9" stroke="#a37b4c" strokeWidth="6" />
               <circle cx={f.x + f.w / 2} cy={326 - f.h / 2 - 6} r={Math.min(f.w, f.h) / 5} fill="#f2c9a4" />
               <ellipse cx={f.x + f.w / 2} cy={326 - f.h / 2 + 18} rx={f.w / 4} ry={f.h / 7} fill="#9cc3ea" />
+              </g>
             </g>
           )
         })}
 
         {/* the very nice fat chair */}
         <ellipse cx="350" cy="620" rx="320" ry="260" fill="url(#br-spot)" opacity={on('chair')} className="fade" />
-        <g className="chair">
+        <g key={`chair${pokes.chair ?? 0}`} {...poked('chair', 'rock')}>
           <rect x="190" y="430" width="320" height="260" rx={chairRx} fill="#f2a65a" style={{ transition: 'rx .35s ease' }} />
           <rect x="160" y="600" width="380" height="150" rx={Math.max(14, chairRx * 0.7)} fill="#e08d42" style={{ transition: 'rx .35s ease' }} />
           <rect x="190" y="745" width="22" height="50" fill="#7a4a22" />
@@ -166,7 +191,7 @@ export default function BlueRoomScene({ focus, progress }: SceneProps) {
         </text>
 
         {/* the cardboard box, and the uniform that got out of it */}
-        <g opacity={on('box')} className="fade">
+        <g opacity={on('box')} className="fade" {...hidden(focus === 'box')}>
           <g transform={`translate(0 ${-ramp(progress, 0.45, 0.85) * 110})`} opacity={ramp(progress, 0.4, 0.6)}>
             <ellipse cx="800" cy="600" rx="120" ry="70" fill="url(#br-glow)" />
             <path d="M740 560 L770 540 H830 L860 560 L845 590 L830 584 V650 H770 V584 L755 590 Z" fill="#f6f2e8" stroke="#2c548f" strokeWidth="4" />
@@ -174,9 +199,12 @@ export default function BlueRoomScene({ focus, progress }: SceneProps) {
           </g>
           <path d="M680 690 L920 690 L900 820 L700 820 Z" fill="#c9965a" />
           <path d="M680 690 L640 650 L760 650 L790 690 Z M920 690 L960 650 L840 650 L810 690 Z" fill="#b88449" />
+          <g key={`box${pokes.box ?? 0}`} {...poked('box', 'popup')}>
           <g className="box-cats">
             <path d="M735 690 L745 660 L758 690 Z M770 690 L780 660 L790 690 Z" fill="#1a2a48" />
             <path d="M830 690 L840 664 L850 690 Z M858 690 L868 664 L878 690 Z" fill="#1a2a48" />
+          </g>
+            <rect x="680" y="650" width="280" height="170" fill="transparent" />
           </g>
         </g>
 
