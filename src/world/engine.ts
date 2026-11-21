@@ -14,6 +14,8 @@ export interface WorldOptions {
   places: Place[]
   onPlace: (place: Place) => void
   onFirstMove: () => void
+  /** Just walked out of a building: the camera starts close on its door and pulls back. */
+  arrived?: boolean
 }
 
 export interface World {
@@ -466,12 +468,26 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
   const me = walker()
   scene.add(me.group)
 
+  let stepOut: THREE.Vector3 | null = null
+  let intro: { at: number; from: THREE.Vector3; look: THREE.Vector3 } | null = null
+  /** Going in: the camera swoops down to the doorway. */
+  let swoop: { at: number; from: THREE.Vector3; look: THREE.Vector3; to: THREE.Vector3; into: THREE.Vector3 } | null = null
+  const ease = (k: number) => (k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2)
   // Start in the middle, or outside the door you just came out of.
   const back = buildings.find((b) => b.key === opts.from)
   if (back) {
     const out = new THREE.Vector3().subVectors(back.door, back.group.position).setY(0).normalize()
-    me.group.position.copy(back.door).addScaledVector(out, 1.6)
+    // Step out of the doorway.
+    me.group.position.copy(back.door).addScaledVector(out, 0.2)
     me.group.rotation.y = Math.atan2(out.x, out.z)
+    stepOut = back.door.clone().addScaledVector(out, 1.8)
+    if (opts.arrived) {
+      intro = {
+        at: performance.now() / 1000,
+        from: back.door.clone().addScaledVector(out, 2.4).setY(1.5),
+        look: back.door.clone().setY(1.1),
+      }
+    }
   } else {
     me.group.rotation.y = Math.PI * 0.85
   }
@@ -497,7 +513,7 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
 
   // ---------- input ----------
   const keys = new Set<string>()
-  let target: THREE.Vector3 | null = null
+  let target: THREE.Vector3 | null = stepOut
   let goingIn: Building | null = null
   let holding = false
   let moved = false
@@ -603,6 +619,16 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
     keys.clear()
     target = null
     b.group.updateMatrixWorld(true)
+    if (b.post) {
+      const out = new THREE.Vector3().subVectors(b.door, b.group.position).setY(0).normalize()
+      swoop = {
+        at: performance.now() / 1000,
+        from: camera.position.clone(),
+        look: focus.clone().setY(0.8),
+        to: b.door.clone().addScaledVector(out, 4.2).setY(2.8),
+        into: b.door.clone().addScaledVector(out, -2.5).setY(0.9),
+      }
+    }
     const r = canvas.getBoundingClientRect()
     let x0 = Infinity
     let y0 = Infinity
@@ -623,7 +649,8 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
 
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame)
-    const dt = Math.min(0.05, (now - last) / 1000)
+    // The first frame's clock can read a hair before `last`; a negative step would run everything backward.
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000))
     last = now
     const t = now / 1000
     const pos = me.group.position
@@ -645,6 +672,12 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
       }
       if (want.lengthSq() > 1) want.normalize()
     }
+    if (swoop) {
+      // Keep walking, through the doorway and into the dark.
+      want.subVectors(swoop.into, pos).setY(0)
+      if (want.length() > 0.3) want.normalize().multiplyScalar(0.6)
+      else want.set(0, 0, 0)
+    }
     vel.lerp(want.multiplyScalar(SPEED), 1 - Math.exp(-dt * 10))
     pos.addScaledVector(vel, dt)
 
@@ -654,7 +687,7 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
     for (const b of buildings) {
       scratch.subVectors(pos, b.group.position).setY(0)
       const d = scratch.length()
-      if (d < b.radius + 0.35) pos.copy(b.group.position).addScaledVector(scratch.normalize(), b.radius + 0.35).setY(0)
+      if (d < b.radius + 0.35 && !swoop) pos.copy(b.group.position).addScaledVector(scratch.normalize(), b.radius + 0.35).setY(0)
       if (!entered && pos.distanceTo(b.door) < 0.9) {
         // Walking up to a door, by keys or by click, takes you in.
         const facing = new THREE.Vector3().subVectors(b.group.position, pos).setY(0).normalize()
@@ -736,7 +769,19 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
     // Follow along.
     focus.lerp(pos, 1 - Math.exp(-dt * 3))
     camera.position.copy(focus).add(camOffset)
-    camera.lookAt(look.copy(focus).setY(0.8))
+    look.copy(focus).setY(0.8)
+    if (intro) {
+      const k = ease(Math.min(1, (t - intro.at) / 2))
+      camera.position.lerpVectors(intro.from, camera.position, k)
+      look.lerpVectors(intro.look, look, k)
+      if (k >= 1) intro = null
+    }
+    if (swoop) {
+      const k = ease(Math.min(1, (t - swoop.at) / 0.8))
+      camera.position.lerpVectors(swoop.from, swoop.to, k)
+      look.lerpVectors(swoop.look, swoop.into, k)
+    }
+    camera.lookAt(look)
 
     // Names over the buildings when you are close or pointing at them.
     const r = canvas.getBoundingClientRect()

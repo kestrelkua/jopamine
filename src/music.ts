@@ -285,3 +285,43 @@ export function toot() {
   }
   window.setTimeout(() => out.disconnect(), (t - a.currentTime + 4) * 1000)
 }
+
+let echoFor: { a: AudioContext; node: AudioNode } | null = null
+/** One shared cave echo for little sounds, so each doesn't build its own. */
+function sharedEcho(a: AudioContext) {
+  if (echoFor?.a === a) return echoFor.node
+  const conv = caveEcho(a)
+  const wet = a.createGain()
+  wet.gain.value = 0.45
+  conv.connect(wet).connect(a.destination)
+  echoFor = { a, node: conv }
+  return conv
+}
+
+/** A ringing stone: a bell-like tone that rings out into the cave. Follows the sound-effects switch. */
+export function ring(freq: number) {
+  if (!soundOn()) return
+  const a = audioContext()
+  if (!a) return
+  const t = a.currentTime + 0.01
+  const out = a.createGain()
+  out.gain.value = 0.16
+  out.connect(a.destination)
+  out.connect(sharedEcho(a))
+  ;[
+    [1, 1, 2.2],
+    [2.76, 0.35, 1],
+    [5.4, 0.12, 0.5],
+  ].forEach(([mult, level, length]) => {
+    const o = a.createOscillator()
+    o.frequency.value = freq * mult
+    const g = a.createGain()
+    g.gain.setValueAtTime(0, t)
+    g.gain.linearRampToValueAtTime(level, t + 0.005)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + length)
+    o.connect(g).connect(out)
+    o.start(t)
+    o.stop(t + length + 0.05)
+  })
+  window.setTimeout(() => out.disconnect(), 3000)
+}

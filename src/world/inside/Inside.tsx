@@ -13,6 +13,7 @@ import { hasInside } from './hasInside'
 import './Inside.css'
 
 const chainKey = (slug: string) => `jt.inside.${slug}.chain`
+const songKey = (slug: string) => `jt.inside.${slug}.song`
 
 function loadFlag(key: string) {
   try {
@@ -45,10 +46,29 @@ function CaveWalk({ post }: { post: Post }) {
   const [given, setGiven] = useState(() => loadGiven(giftKey))
   const [moved, setMoved] = useState(false)
   const [music, setMusic] = useState(musicOn)
+  const [leaving, setLeaving] = useState(false)
   const roomMusic = useRoomMusic(post, music, () => !!given)
   const box = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
   const cave = useRef<Cave | null>(null)
+
+  // Out through the light: the screen fills with it, then the world fades in around you.
+  const leave = () => {
+    if (leaving) return
+    setLeaving(true)
+    cave.current?.rush()
+    try {
+      sessionStorage.setItem('jt.world.from', post.slug)
+      sessionStorage.setItem('jt.world.arrive', '#fff4dc')
+    } catch {
+      // Coming back just starts in the middle, without the fade.
+    }
+    window.setTimeout(() => navigate('/'), 950)
+  }
+  const leaveRef = useRef(leave)
+  useEffect(() => {
+    leaveRef.current = leave
+  })
 
   const focuses = sections.map((s) => s.focus).join()
   useEffect(() => {
@@ -61,18 +81,13 @@ function CaveWalk({ post }: { post: Post }) {
         chainDone: loadFlag(chainKey(post.slug)),
         onStop: setStop,
         onChain: () => saveFlag(chainKey(post.slug)),
+        songDone: loadFlag(songKey(post.slug)),
+        onSong: () => saveFlag(songKey(post.slug)),
         onGive: (name) => {
           setGiven(name)
           saveGiven(giftKey, name)
         },
-        onExit: () => {
-          try {
-            sessionStorage.setItem('jt.world.from', post.slug)
-          } catch {
-            // Coming back just starts in the middle.
-          }
-          navigate('/')
-        },
+        onExit: () => leaveRef.current(),
         onFirstMove: () => setMoved(true),
       })
       cave.current = c
@@ -123,7 +138,14 @@ function CaveWalk({ post }: { post: Post }) {
           <div className="level-fill" style={{ width: `${level}%` }} />
         </div>
         <div className="topbar-row">
-          <Link to="/" className="home-link">
+          <Link
+            to="/"
+            className="home-link"
+            onClick={(e) => {
+              e.preventDefault()
+              leave()
+            }}
+          >
             ← <span className="hide-sm">Jopamine Tinoxytocin</span>
           </Link>
           <span className="where">{section?.label ?? post.title}</span>
@@ -177,6 +199,13 @@ function CaveWalk({ post }: { post: Post }) {
           </div>
         )}
       </aside>
+
+      <div className="inside-arrive" aria-hidden="true" />
+      {leaving && (
+        <div className="inside-leave" aria-hidden="true">
+          <div className="inside-bloom" />
+        </div>
+      )}
 
       {!moved && (
         <div className="world-keys inside-keys" aria-hidden="true">

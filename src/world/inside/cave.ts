@@ -1,7 +1,7 @@
 // Inside the cave: one long tunnel you walk along, a chamber for each part of the story, and things to
 // do on the way. Walking forward is reading forward. React mounts it and shows the story cards (Inside.tsx).
 import * as THREE from 'three'
-import { sing, strum, toot } from '../../music'
+import { ring, sing, strum, toot } from '../../music'
 import { pianoNote, tick } from '../../sound'
 import { GOLD, PINK, lambert, mesh, person, seeded, walker } from '../parts'
 import { carving, carvingCount } from './carvings'
@@ -12,6 +12,8 @@ export interface CaveOptions {
   /** Who was given the guitar on an earlier visit. */
   given: string | null
   chainDone: boolean
+  songDone: boolean
+  onSong: () => void
   onStop: (i: number) => void
   onChain: () => void
   onGive: (name: string) => void
@@ -22,6 +24,8 @@ export interface CaveOptions {
 export interface Cave {
   /** Room the story card takes up on the right (wide screens) or bottom (phones), so the walker stays visible. */
   setInset: (right: number, bottom: number) => void
+  /** Rushes the camera forward into the light, for leaving. */
+  rush: () => void
   /** How far down the current story card the reader has scrolled, 0 to 1. */
   setReading: (p: number) => void
   dispose: () => void
@@ -282,6 +286,10 @@ export function createCave(container: HTMLElement, opts: CaveOptions): Cave {
   const clickables: { obj: THREE.Object3D; fn: (hit: THREE.Intersection) => void; drag?: boolean }[] = []
   const reading = { stop: -1, p: 0 }
   let stop = -2
+  const bornAt = performance.now() / 1000
+  let rushAt = -1
+  const easeOut = (k: number) => 1 - (1 - k) ** 3
+  const easeIn = (k: number) => k * k * k
   const labels: { el: HTMLDivElement; at: () => THREE.Vector3; near: () => boolean }[] = []
   const label = (text: string, at: () => THREE.Vector3, near: () => boolean) => {
     const el = document.createElement('div')
@@ -304,6 +312,8 @@ export function createCave(container: HTMLElement, opts: CaveOptions): Cave {
   }
 
   let pianoUp = () => {}
+  const song = { center: null as THREE.Vector3 | null, stop: -1, done: false, doneAt: 0 }
+  const scratch2 = new THREE.Vector3()
   // Story state the games share.
   const chain = { figures: [] as { p: ReturnType<typeof person>; at: THREE.Vector3; ring: THREE.Mesh }[], linked: 0, done: opts.chainDone, gate: null as THREE.Group | null, gateS: Infinity, startS: Infinity }
   const gift = { guitar: null as THREE.Group | null, carried: false, given: opts.given, folk: [] as { name: string; p: ReturnType<typeof person>; at: THREE.Vector3 }[], startS: Infinity }
@@ -505,29 +515,143 @@ export function createCave(container: HTMLElement, opts: CaveOptions): Cave {
         gate.position.y = -3
       }
     },
-    steps: (s) => {
-      fireAt(s + 1, 3, '#d98a4a', 6)
+    steps: (s, i) => {
+      fireAt(s - 2, 4, '#d98a4a', 6)
       // Pages of songbooks, carried up on the draft.
       const pages = Array.from({ length: 16 }, (_, k) => {
         const m = mesh(new THREE.PlaneGeometry(0.32, 0.42), new THREE.MeshLambertMaterial({ color: '#efe4cf', side: THREE.DoubleSide }), false)
         scene.add(m)
         return { m, a: rand() * Math.PI * 2, r: 0.5 + rand() * 1.4, h: rand() * 4, sp: 0.4 + rand() * 0.4, k }
       })
-      const column = spot(s + 3, -2.5)
-      updates.push((t) => {
-        for (const p of pages) {
-          const y = (p.h + t * p.sp) % 4.5
-          p.m.position.set(column.x + Math.cos(p.a + t * 0.6) * p.r, 0.3 + y, column.z + Math.sin(p.a + t * 0.6) * p.r)
-          p.m.rotation.set(t * 1.3 + p.k, t * 0.9 + p.k, 0)
-        }
-      })
+      const column = spot(s + 2, -4)
       const sack = lambert('#8a6a45', { flatShading: true })
       for (let k = 0; k < 3; k++) {
         const m = mesh(new THREE.IcosahedronGeometry(0.45, 1), sack)
         m.scale.set(1, 1.2, 1)
-        m.position.copy(spot(s + 5 + k * 0.9, 3.4 + (k % 2) * 0.5, 0.5))
+        m.position.copy(spot(s - 4 + k * 0.9, 3.6 + (k % 2) * 0.5, 0.5))
         scene.add(m)
       }
+
+      // The game: songs kept without notation. A singer sings a tune; sing it back on the ringing stones.
+      const pitches = [293.66, 349.23, 392, 440, 523.25]
+      const tune = [2, 4, 3, 1, 0]
+      const rounds = [3, 4, 5]
+      const stones = pitches.map((f, k) => {
+        // An arc of stones across the chamber, lowest note on the left, like bells facing you.
+        const along = s + 6 + (k - 2) ** 2 * 0.35
+        const mat = lambert('#7d6a5a', { flatShading: true, emissive: '#ef6f9a', emissiveIntensity: 0 })
+        const h = 1.5 - k * 0.15
+        const m = mesh(new THREE.ConeGeometry(0.42, h, 6), mat)
+        const at = spot(along, (k - 2) * 1.55)
+        m.position.copy(at).setY(h / 2)
+        scene.add(m, blobAt(at, 0.5))
+        solids.push(at)
+        return { m, mat, at, f, glow: 0, inside: false }
+      })
+      const singer = person('#3a6a4a')
+      const singerAt = spot(s + 9.5, 2.8)
+      singer.group.position.copy(singerAt)
+      singer.group.lookAt(spot(s + 4, 0))
+      scene.add(singer.group, blobAt(singerAt))
+      solids.push(singerAt)
+      const book = new THREE.Group()
+      const cover = mesh(new THREE.BoxGeometry(0.42, 0.06, 0.32), lambert('#6f8fd0'))
+      const leaves = mesh(new THREE.BoxGeometry(0.38, 0.05, 0.3), lambert('#fbf7f1'), false)
+      leaves.position.y = 0.04
+      book.add(cover, leaves)
+      book.position.set(0, 1.0, 0.42)
+      book.visible = false
+      singer.body.add(book)
+      song.center = spot(s + 6.4, 0)
+      song.stop = i
+
+      let round = 0
+      let heard: number[] = []
+      let phase: 'wait' | 'sing' | 'turn' | 'done' = opts.songDone ? 'done' : 'wait'
+      let nextAt = 0
+      let mouth = 0
+      const sound = (k: number) => {
+        stones[k].glow = 1
+        ring(stones[k].f)
+      }
+      const singTune = (t: number) => {
+        phase = 'sing'
+        heard = []
+        const n = rounds[round]
+        for (let k = 0; k < n; k++) {
+          window.setTimeout(() => {
+            sing(pitches[tune[k]], { length: 0.75, level: 0.06 })
+            stones[tune[k]].glow = 0.7
+            mouth = 1
+          }, 700 * k)
+        }
+        nextAt = t + 0.7 * n + 0.3
+      }
+      const press = (k: number) => {
+        sound(k)
+        if (phase !== 'turn') return
+        heard.push(k)
+        const want = tune.slice(0, rounds[round])
+        if (heard[heard.length - 1] !== want[heard.length - 1]) {
+          // Not quite: the singer hums the tune again.
+          phase = 'wait'
+          nextAt = performance.now() / 1000 + 1.2
+          sing(196, { length: 0.6, level: 0.04 })
+          return
+        }
+        if (heard.length < want.length) return
+        round++
+        if (round < rounds.length) {
+          phase = 'wait'
+          nextAt = performance.now() / 1000 + 1.4
+          return
+        }
+        // The whole tune, from memory: now it can be written down.
+        phase = 'done'
+        song.done = true
+        song.doneAt = performance.now() / 1000
+        tune.forEach((k, j) => window.setTimeout(() => sing(pitches[k], { length: 0.9, level: 0.06 }), 400 + j * 450))
+        opts.onSong()
+      }
+      stones.forEach((st, k) => clickables.push({ obj: st.m, fn: () => press(k) }))
+      clickables.push({ obj: singer.group, fn: () => phase !== 'done' && phase !== 'sing' && singTune(performance.now() / 1000) })
+      if (phase === 'done') {
+        song.done = true
+        song.doneAt = -100
+      }
+
+      updates.push((t, pos) => {
+        // Stepping up to a stone rings it too.
+        stones.forEach((st, k) => {
+          const near = Math.hypot(pos.x - st.at.x, pos.z - st.at.z) < 0.95
+          if (near && !st.inside) press(k)
+          st.inside = near
+          st.glow = Math.max(0, st.glow - 0.025)
+          st.mat.emissiveIntensity = st.glow * 0.9 + (phase === 'turn' ? 0.08 + Math.sin(t * 3) * 0.05 : 0)
+        })
+        if (phase === 'wait' && stop === i && pos.distanceTo(song.center!) < 7 && t > nextAt) singTune(t)
+        if (phase === 'sing' && t > nextAt) phase = 'turn'
+        // The singer sways while singing.
+        mouth = Math.max(0, mouth - 0.04)
+        singer.body.rotation.z = phase === 'sing' || mouth > 0 ? Math.sin(t * 3) * 0.06 : 0
+        singer.arms[0].rotation.z = -0.2 - mouth * 0.5
+        singer.arms[1].rotation.z = 0.2 + mouth * 0.5
+
+        // Pages swirl until the song is sung; then they fly together into a book in the singer's hands.
+        const gather = song.done ? Math.min(1, (t - song.doneAt) / 2.5) : 0
+        const hands = scratch2.copy(singerAt).setY(1.05)
+        for (const p of pages) {
+          const y = (p.h + t * p.sp) % 4.5
+          const sx = column.x + Math.cos(p.a + t * 0.6) * p.r
+          const sz = column.z + Math.sin(p.a + t * 0.6) * p.r
+          p.m.position.set(sx + (hands.x - sx) * gather, 0.3 + y + (hands.y - 0.3 - y) * gather, sz + (hands.z - sz) * gather)
+          p.m.rotation.set((t * 1.3 + p.k) * (1 - gather), (t * 0.9 + p.k) * (1 - gather), 0)
+          p.m.scale.setScalar(1 - gather * 0.9)
+          p.m.visible = gather < 1
+        }
+        book.visible = gather >= 1
+        if (book.visible) singer.arms.forEach((a, k) => (a.rotation.z = (k ? 1 : -1) * 0.25))
+      })
     },
     finale: (s) => {
       gift.startS = s
@@ -786,7 +910,8 @@ export function createCave(container: HTMLElement, opts: CaveOptions): Cave {
 
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame)
-    const dt = Math.min(0.05, (now - last) / 1000)
+    // The first frame's clock can read a hair before `last`; a negative step would run everything backward.
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000))
     last = now
     const t = now / 1000
 
@@ -929,6 +1054,7 @@ export function createCave(container: HTMLElement, opts: CaveOptions): Cave {
     // ---- the firefly flies toward whatever's next ----
     let goal: THREE.Vector3
     if (chain.figures.length && !chain.done && s > chain.startS - 6) goal = chain.figures[chain.linked].at
+    else if (song.center && !song.done && stop === song.stop) goal = song.center
     else if (gift.guitar && !gift.given && s > gift.startS - 8) goal = gift.carried ? gift.folk[2].at : gift.guitar.position
     else {
       const nextStop = stopS.find((c) => c > s + 3)
@@ -951,14 +1077,27 @@ export function createCave(container: HTMLElement, opts: CaveOptions): Cave {
     // The way out.
     if (!gone && s > length - 1.5) {
       gone = true
+      rushAt = t
       opts.onExit()
     }
 
     // ---- camera: behind you, looking down the tunnel ----
     fwd.lerp(T[idx], 1 - Math.exp(-dt * 2)).normalize()
     focus.lerp(pos, 1 - Math.exp(-dt * 4))
-    camera.position.lerp(scratch.copy(focus).addScaledVector(fwd, -8.5 * back).add(new THREE.Vector3(0, 6.5 * back, 0)), 1 - Math.exp(-dt * 4))
-    camera.lookAt(scratch.copy(focus).addScaledVector(fwd, 3).setY(1))
+    // Arriving, it starts low and close behind you and rises up and back; leaving, it rushes ahead into the light.
+    const rise = easeOut(Math.min(1, (t - bornAt) / 2.2))
+    const rushK = rushAt < 0 ? 0 : easeIn(Math.min(1, (t - rushAt) / 0.9))
+    const dist = (2.2 + (8.5 - 2.2) * rise) * back
+    const height = (1.3 + (6.5 - 1.3) * rise) * back
+    const camTo = scratch.copy(focus).addScaledVector(fwd, -dist + rushK * 14).add(new THREE.Vector3(0, height - rushK * 3, 0))
+    if (rise < 1 || rushK > 0) camera.position.copy(camTo)
+    else camera.position.lerp(camTo, 1 - Math.exp(-dt * 4))
+    camera.lookAt(scratch.copy(focus).addScaledVector(fwd, 3 + rushK * 12).setY(1 + rushK))
+    const fov = 50 + rushK * 38
+    if (Math.abs(camera.fov - fov) > 0.01) {
+      camera.fov = fov
+      camera.updateProjectionMatrix()
+    }
     // Slide the picture over so the story card doesn't cover you.
     inset.x += (inset.right / 2 - inset.x) * Math.min(1, dt * 5)
     inset.y += (inset.bottom / 2 - inset.y) * Math.min(1, dt * 5)
@@ -977,6 +1116,10 @@ export function createCave(container: HTMLElement, opts: CaveOptions): Cave {
   raf = requestAnimationFrame(frame)
 
   return {
+    rush: () => {
+      gone = true
+      if (rushAt < 0) rushAt = performance.now() / 1000
+    },
     setReading: (p) => {
       reading.stop = stop
       reading.p = p

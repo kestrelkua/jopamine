@@ -67,3 +67,62 @@
     display: none;
   }
 }
+
+/* Fading up from the dark of the doorway, and out into the light. */
+.inside-arrive,
+.inside-leave {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.inside-arrive {
+  background: #0e0907;
+  animation: inside-fade-out 1.2s 0.15s ease both;
+}
+.inside-leave {
+  overflow: hidden;
+  animation: inside-whiteout 0.95s ease-in both;
+}
+/* A burst of light that blooms out from the middle until it fills the screen. */
+.inside-bloom {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 40vmax;
+  height: 40vmax;
+  margin: -20vmax 0 0 -20vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf6 0%, #fff4dc 35%, rgba(255, 220, 150, 0.6) 60%, rgba(255, 220, 150, 0) 72%);
+  animation: inside-bloom 0.95s cubic-bezier(0.6, 0, 0.8, 0.4) both;
+}
+@keyframes inside-bloom {
+  from {
+    transform: scale(0.05);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(6);
+    opacity: 1;
+  }
+}
+@keyframes inside-whiteout {
+  0%,
+  65% {
+    background: rgba(255, 244, 220, 0);
+  }
+  100% {
+    background: #fff4dc;
+  }
+}
+@keyframes inside-fade-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes inside-fade-in {
+  from {
+    opacity: 0;
+  }
+}

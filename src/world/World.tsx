@@ -27,6 +27,17 @@ function rememberDoor(key: string) {
 /** Where a building's door leads: walking inside if the post has an inside, otherwise the reader. */
 const placeOf = (post: Post) => (hasInside(post) ? `/inside/${post.slug}` : `/post/${post.slug}`)
 
+/** The color to fade in from, if the reader just walked out of somewhere (read once). */
+function arrivingFrom() {
+  try {
+    const c = sessionStorage.getItem('jt.world.arrive')
+    sessionStorage.removeItem('jt.world.arrive')
+    return c
+  } catch {
+    return null
+  }
+}
+
 function cameFrom() {
   try {
     return sessionStorage.getItem(FROM)
@@ -35,24 +46,20 @@ function cameFrom() {
   }
 }
 
-/** Stepping through a doorway into a 3D inside: the dark of the doorway grows until it fills the screen. */
-function Dive({ from, onDone }: { from: DOMRect; onDone: () => void }) {
+/** Stepping through a doorway into a 3D inside: once the camera has swooped to face the door, its dark grows
+ *  from the middle of the screen until it fills it. */
+function Dive({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
-    let raf = requestAnimationFrame(() => {
-      raf = requestAnimationFrame(() => setOpen(true))
-    })
     whoosh()
-    const done = window.setTimeout(onDone, 750)
+    const grow = window.setTimeout(() => setOpen(true), 380)
+    const done = window.setTimeout(onDone, 1050)
     return () => {
-      cancelAnimationFrame(raf)
+      window.clearTimeout(grow)
       window.clearTimeout(done)
     }
   }, [onDone])
-  const x = from.left + from.width / 2
-  const y = from.top + from.height / 2
-  const r = open ? '150vmax' : `${Math.max(from.width, from.height) / 2}px`
-  return <div className="world-dive" style={{ clipPath: `circle(${r} at ${x}px ${y}px)` }} aria-hidden="true" />
+  return <div className="world-dive" style={{ clipPath: `circle(${open ? '150vmax' : '0px'} at 50% 62%)` }} aria-hidden="true" />
 }
 
 export default function World() {
@@ -62,6 +69,8 @@ export default function World() {
   const [opening, setOpening] = useState<{ post: Post; from: DOMRect } | null>(null)
   const [moved, setMoved] = useState(false)
   const [broken, setBroken] = useState(false)
+  const [fadeFrom] = useState(arrivingFrom)
+  const fadeRef = useRef(fadeFrom)
 
   // Rebuild only when the set of posts changes, not on every draft save.
   const key = posts.map((p) => `${p.slug}:${p.scene}:${p.chemical}:${p.title}`).join('|')
@@ -75,6 +84,7 @@ export default function World() {
       const world = createWorld(el, {
         posts: postsRef.current,
         from: cameFrom(),
+        arrived: !!fadeRef.current,
         onFirstMove: () => setMoved(true),
         places,
         onPlace: (place) => {
@@ -115,7 +125,8 @@ export default function World() {
           </div>
         )
       )}
-      {opening && (hasInside(opening.post) ? <Dive from={opening.from} onDone={arrive} /> : <Door post={opening.post} from={opening.from} onDone={arrive} />)}
+      {fadeFrom && <div className="world-arrive" style={{ '--glow': fadeFrom } as React.CSSProperties} aria-hidden="true" />}
+      {opening && (hasInside(opening.post) ? <Dive onDone={arrive} /> : <Door post={opening.post} from={opening.from} onDone={arrive} />)}
     </div>
   )
 }
