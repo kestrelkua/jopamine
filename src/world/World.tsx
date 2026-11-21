@@ -5,9 +5,13 @@ import type { Post } from '../content/types'
 import Door from '../pages/Door'
 import '../pages/Home.css'
 import { createWorld } from './engine'
+import { hasInside } from './inside/hasInside'
 import './World.css'
 
 const FROM = 'jt.world.from'
+
+/** Where a building's door leads: walking inside if the post has an inside, otherwise the reader. */
+const placeOf = (post: Post) => (hasInside(post) ? `/inside/${post.slug}` : `/post/${post.slug}`)
 
 function cameFrom() {
   try {
@@ -44,7 +48,7 @@ export default function World() {
           } catch {
             // Coming back just starts in the middle.
           }
-          if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) navigate(`/post/${post.slug}`, { state: { from: 'world' } })
+          if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) navigate(placeOf(post), { state: { from: 'world' } })
           else setOpening({ post, from })
         },
       })
@@ -54,7 +58,7 @@ export default function World() {
     }
   }, [key, navigate])
 
-  const arrive = useCallback(() => opening && navigate(`/post/${opening.post.slug}`, { state: { from: 'world' } }), [opening, navigate])
+  const arrive = useCallback(() => opening && navigate(placeOf(opening.post), { state: { from: 'world' } }), [opening, navigate])
 
   return (
     <div className="world">

@@ -89,8 +89,9 @@ function LitText({ text }: { text: string }) {
       setLit(Math.max(0, Math.min(count, Math.ceil(p * count))))
     }
     measure()
-    window.addEventListener('scroll', measure, { passive: true })
-    return () => window.removeEventListener('scroll', measure)
+    // Capture also hears scrolling inside a panel (the cave's story cards), not just the page.
+    window.addEventListener('scroll', measure, { passive: true, capture: true })
+    return () => window.removeEventListener('scroll', measure, { capture: true })
   }, [count])
   let n = 0
   return (

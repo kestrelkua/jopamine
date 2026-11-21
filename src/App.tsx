@@ -8,6 +8,7 @@ import Tracker from './tracker/Tracker'
 
 // The 3D world brings three.js with it, so it only loads when someone goes there.
 const World = lazy(() => import('./world/World'))
+const Inside = lazy(() => import('./world/inside/Inside'))
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -28,6 +29,14 @@ export default function App() {
         <Route path="/write/:id" element={<Editor />} />
         <Route path="/preview/:id" element={<Preview />} />
         <Route path="/tracker" element={<Tracker />} />
+        <Route
+          path="/inside/:slug"
+          element={
+            <Suspense fallback={<div className="world" />}>
+              <Inside />
+            </Suspense>
+          }
+        />
         <Route
           path="/world"
           element={

@@ -220,3 +220,68 @@ export function startMusic(room: SceneId, guitar: () => boolean): RoomMusic | nu
     },
   }
 }
+
+/** A sung "aah": a buzzy voice shaped by two vowel formants. Follows the sound-effects switch. */
+export function sing(freq: number, { at = 0, length = 2.4, level = 0.09 } = {}) {
+  if (!soundOn()) return
+  const a = audioContext()
+  if (!a) return
+  const t = a.currentTime + 0.03 + at
+  const g = a.createGain()
+  g.gain.setValueAtTime(0, t)
+  g.gain.linearRampToValueAtTime(level, t + 0.25)
+  g.gain.setValueAtTime(level, t + length - 0.6)
+  g.gain.linearRampToValueAtTime(0, t + length)
+  g.connect(a.destination)
+  const voice = a.createOscillator()
+  voice.type = 'sawtooth'
+  voice.frequency.setValueAtTime(freq, t)
+  const vib = a.createOscillator()
+  const depth = a.createGain()
+  vib.frequency.value = 5 + Math.random()
+  depth.gain.setValueAtTime(0, t)
+  depth.gain.linearRampToValueAtTime(freq * 0.012, t + 0.8)
+  vib.connect(depth).connect(voice.frequency)
+  for (const [f, q, lv] of [
+    [750, 6, 1],
+    [1150, 8, 0.6],
+    [2600, 10, 0.15],
+  ]) {
+    const band = a.createBiquadFilter()
+    band.type = 'bandpass'
+    band.frequency.value = f
+    band.Q.value = q
+    const bg = a.createGain()
+    bg.gain.value = lv
+    voice.connect(band).connect(bg).connect(g)
+  }
+  for (const n of [voice, vib]) {
+    n.start(t)
+    n.stop(t + length + 0.1)
+  }
+}
+
+/** A few notes on a bone flute, with the cave's echo. Follows the sound-effects switch. */
+export function toot() {
+  if (!soundOn()) return
+  const a = audioContext()
+  if (!a) return
+  const out = a.createGain()
+  out.gain.value = 0.25
+  const echo = caveEcho(a)
+  const wet = a.createGain()
+  wet.gain.value = 0.5
+  out.connect(a.destination)
+  out.connect(echo).connect(wet).connect(a.destination)
+  let t = a.currentTime + 0.05
+  for (const [i, d] of [
+    [2, 0.35],
+    [3, 0.35],
+    [4, 0.7],
+    [3, 1.2],
+  ]) {
+    flute(a, out, scale[i], t, d)
+    t += d
+  }
+  window.setTimeout(() => out.disconnect(), (t - a.currentTime + 4) * 1000)
+}
