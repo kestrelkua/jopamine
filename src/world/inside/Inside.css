@@ -126,3 +126,28 @@
     opacity: 0;
   }
 }
+
+/* Between two realities: a burst of light at the moment the room folds and unfolds. */
+.inside-warp {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, #fffdf6 0%, #fff1c8 30%, rgba(255, 210, 140, 0.5) 55%, rgba(255, 210, 140, 0) 75%);
+  animation: inside-warp 1.4s ease both;
+}
+@keyframes inside-warp {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.4);
+    visibility: hidden;
+  }
+}

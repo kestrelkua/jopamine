@@ -48,6 +48,7 @@ function Walk({ post }: { post: Post }) {
   const [moved, setMoved] = useState(false)
   const [music, setMusic] = useState(musicOn)
   const [leaving, setLeaving] = useState(false)
+  const [warps, setWarps] = useState(0)
   const roomMusic = useRoomMusic(post, music, () => !!given)
   const box = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
@@ -85,7 +86,7 @@ function Walk({ post }: { post: Post }) {
       }
       const c =
         post.scene === 'blue-room'
-          ? createBlueRoom(el, common)
+          ? createBlueRoom(el, { ...common, onWarp: () => setWarps((n) => n + 1) })
           : createCave(el, {
               ...common,
               given: loadGiven(giftKey),
@@ -215,6 +216,7 @@ function Walk({ post }: { post: Post }) {
         )}
       </aside>
 
+      {warps > 0 && <div key={warps} className="inside-warp" aria-hidden="true" />}
       <div className="inside-arrive" style={{ background: insideColor(post) }} aria-hidden="true" />
       {leaving && (
         <div className="inside-leave" aria-hidden="true">
