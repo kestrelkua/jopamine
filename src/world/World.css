@@ -1,0 +1,125 @@
+.world {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #f6eee4;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.world-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.world-stage canvas {
+  display: block;
+  outline: none;
+}
+
+.world-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.world-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 6px 14px 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.88);
+  border: 1px solid #e4dccf;
+  border-bottom: 3px solid var(--chem);
+  color: #1f1b24;
+  font: 700 17px var(--font-display);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  box-shadow: 0 6px 18px rgb(60 40 20 / 0.12);
+}
+.world-label.show {
+  opacity: 1;
+}
+.world-label.chem-dopamine {
+  --chem: var(--dopamine);
+}
+.world-label.chem-oxytocin {
+  --chem: var(--oxytocin);
+}
+
+.world-home {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  font: 800 20px var(--font-display);
+  text-decoration: none;
+  text-shadow: 0 0 8px #f6eee4, 0 0 3px #f6eee4;
+}
+.world-home .j {
+  color: var(--dopamine-deep);
+}
+.world-home .t {
+  color: var(--oxytocin-deep);
+}
+
+.world-keys {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  grid-template-rows: repeat(2, 34px);
+  gap: 5px;
+  pointer-events: none;
+  animation: world-keys-in 1.2s 1.5s ease both;
+}
+.world-keys kbd {
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.7);
+  border: 1px solid #e4dccf;
+  border-bottom-width: 3px;
+  color: #5e5866;
+  font: 600 15px var(--font-ui);
+}
+.world-keys .up {
+  grid-area: 1 / 2;
+}
+.world-keys .l {
+  grid-area: 2 / 1;
+}
+.world-keys .d {
+  grid-area: 2 / 2;
+}
+.world-keys .r {
+  grid-area: 2 / 3;
+}
+@keyframes world-keys-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+@media (pointer: coarse) {
+  .world-keys {
+    display: none;
+  }
+}
+
+.world-broken {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font: 800 40px var(--font-display);
+}
+.world-broken a {
+  color: #1f1b24;
+  text-decoration: none;
+}

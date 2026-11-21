@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import type { Replay } from '../content/replay'
 import { toSections, wordCount, type Post } from '../content/types'
 import { musicOn, roomHasMusic, setMusicOn, startMusic } from '../music'
@@ -73,6 +73,7 @@ interface Props {
 }
 
 export default function ReaderView({ post, next, replay, focusOverride }: Props) {
+  const fromWorld = (useLocation().state as { from?: string } | null)?.from === 'world'
   const sections = useMemo(() => toSections(post), [post])
   const { refs, state } = useScrollScenes(sections.length)
   const [commentary, setCommentary] = useState(true)
@@ -120,7 +121,7 @@ export default function ReaderView({ post, next, replay, focusOverride }: Props)
           <div className="level-fill" style={{ width: `${level}%` }} />
         </div>
         <div className="topbar-row">
-          <Link to="/" className="home-link">
+          <Link to={fromWorld ? '/world' : '/'} className="home-link">
             ← <span className="hide-sm">Jopamine Tinoxytocin</span>
           </Link>
           <span className="where">{state.index >= 0 && current ? current.label : `${chemicalName[post.chemical]} ${level}%`}</span>

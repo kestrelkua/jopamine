@@ -118,6 +118,9 @@
   color: var(--ink-soft);
   text-decoration: none;
 }
+.home-foot a + a {
+  margin-left: 18px;
+}
 
 /* ---------- the door into a post ---------- */
 .door {
