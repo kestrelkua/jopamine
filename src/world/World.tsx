@@ -6,7 +6,7 @@ import type { Post } from '../content/types'
 import Door from '../pages/Door'
 import '../pages/Home.css'
 import { createWorld, type Place } from './engine'
-import { hasInside } from './inside/hasInside'
+import { hasInside, insideColor } from './inside/hasInside'
 import './World.css'
 
 const FROM = 'jt.world.from'
@@ -48,7 +48,7 @@ function cameFrom() {
 
 /** Stepping through a doorway into a 3D inside: once the camera has swooped to face the door, its dark grows
  *  from the middle of the screen until it fills it. */
-function Dive({ onDone }: { onDone: () => void }) {
+function Dive({ color, onDone }: { color: string; onDone: () => void }) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     whoosh()
@@ -59,7 +59,7 @@ function Dive({ onDone }: { onDone: () => void }) {
       window.clearTimeout(done)
     }
   }, [onDone])
-  return <div className="world-dive" style={{ clipPath: `circle(${open ? '150vmax' : '0px'} at 50% 62%)` }} aria-hidden="true" />
+  return <div className="world-dive" style={{ background: color, clipPath: `circle(${open ? '150vmax' : '0px'} at 50% 62%)` }} aria-hidden="true" />
 }
 
 export default function World() {
@@ -126,7 +126,7 @@ export default function World() {
         )
       )}
       {fadeFrom && <div className="world-arrive" style={{ '--glow': fadeFrom } as React.CSSProperties} aria-hidden="true" />}
-      {opening && (hasInside(opening.post) ? <Dive onDone={arrive} /> : <Door post={opening.post} from={opening.from} onDone={arrive} />)}
+      {opening && (hasInside(opening.post) ? <Dive color={insideColor(opening.post)} onDone={arrive} /> : <Door post={opening.post} from={opening.from} onDone={arrive} />)}
     </div>
   )
 }

@@ -2,14 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { allPosts, useDrafts } from '../../content/drafts'
 import { toSections, wordCount, type Post } from '../../content/types'
-import { musicOn, setMusicOn } from '../../music'
+import { musicOn, roomHasMusic, setMusicOn } from '../../music'
 import { BlockView } from '../../reader/Blocks'
 import { gifts, loadGiven, saveGiven } from '../../reader/gifts'
 import { useRoomMusic } from '../../reader/useRoomMusic'
 import '../../reader/Reader.css'
 import '../World.css'
+import { createBlueRoom } from './blueRoom'
 import { createCave, type Cave } from './cave'
-import { hasInside } from './hasInside'
+import { hasInside, insideColor } from './hasInside'
 import './Inside.css'
 
 const chainKey = (slug: string) => `jt.inside.${slug}.chain`
@@ -35,10 +36,10 @@ export default function Inside() {
   const { slug = '' } = useParams()
   const post = allPosts(useDrafts()).find((p) => p.slug === slug)
   if (!post || !hasInside(post)) return <Navigate to={`/post/${slug}`} replace />
-  return <CaveWalk key={post.slug} post={post} />
+  return <Walk key={post.slug} post={post} />
 }
 
-function CaveWalk({ post }: { post: Post }) {
+function Walk({ post }: { post: Post }) {
   const navigate = useNavigate()
   const sections = useMemo(() => toSections(post), [post])
   const giftKey = `jt.spark.${post.slug}`
@@ -75,21 +76,28 @@ function CaveWalk({ post }: { post: Post }) {
     const el = box.current
     if (!el) return
     try {
-      const c = createCave(el, {
-        stops: focuses.split(','),
-        given: loadGiven(giftKey),
-        chainDone: loadFlag(chainKey(post.slug)),
+      const stops = focuses.split(',')
+      const common = {
+        stops,
         onStop: setStop,
-        onChain: () => saveFlag(chainKey(post.slug)),
-        songDone: loadFlag(songKey(post.slug)),
-        onSong: () => saveFlag(songKey(post.slug)),
-        onGive: (name) => {
-          setGiven(name)
-          saveGiven(giftKey, name)
-        },
         onExit: () => leaveRef.current(),
         onFirstMove: () => setMoved(true),
-      })
+      }
+      const c =
+        post.scene === 'blue-room'
+          ? createBlueRoom(el, common)
+          : createCave(el, {
+              ...common,
+              given: loadGiven(giftKey),
+              chainDone: loadFlag(chainKey(post.slug)),
+              onChain: () => saveFlag(chainKey(post.slug)),
+              songDone: loadFlag(songKey(post.slug)),
+              onSong: () => saveFlag(songKey(post.slug)),
+              onGive: (name) => {
+                setGiven(name)
+                saveGiven(giftKey, name)
+              },
+            })
       cave.current = c
       return () => {
         cave.current = null
@@ -98,7 +106,7 @@ function CaveWalk({ post }: { post: Post }) {
     } catch {
       navigate(`/post/${post.slug}`, { replace: true })
     }
-  }, [focuses, giftKey, post.slug, navigate])
+  }, [focuses, giftKey, post.slug, post.scene, navigate])
 
   // Tell the cave how much of the screen the card covers, so the walker stays in view.
   useEffect(() => {
@@ -150,19 +158,21 @@ function CaveWalk({ post }: { post: Post }) {
           </Link>
           <span className="where">{section?.label ?? post.title}</span>
           <div className="toggles">
-            <button
-              className={`toggle ${music ? 'on' : ''} ${roomMusic.waiting ? 'waiting' : ''}`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
-                if (roomMusic.waiting) return roomMusic.start()
-                setMusicOn(!music)
-                setMusic(!music)
-              }}
-              aria-pressed={music}
-              title="Music"
-            >
-              ♪<span className="hide-sm"> Music</span>
-            </button>
+            {roomHasMusic(post.scene) && (
+              <button
+                className={`toggle ${music ? 'on' : ''} ${roomMusic.waiting ? 'waiting' : ''}`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  if (roomMusic.waiting) return roomMusic.start()
+                  setMusicOn(!music)
+                  setMusic(!music)
+                }}
+                aria-pressed={music}
+                title="Music"
+              >
+                ♪<span className="hide-sm"> Music</span>
+              </button>
+            )}
             <Link className="toggle" to={`/post/${post.slug}`} title="Read it as a page">
               ¶<span className="hide-sm"> Page</span>
             </Link>
@@ -187,20 +197,25 @@ function CaveWalk({ post }: { post: Post }) {
             {section.blocks.map((block, j) => (
               <BlockView key={j} block={block} commentary />
             ))}
-            {stop === sections.length - 1 && <p className="inside-given">{given ? `${given} is playing it now` : gifts.cave.line}</p>}
+            {stop === sections.length - 1 && post.scene === 'cave' && <p className="inside-given">{given ? `${given} is playing it now` : gifts.cave.line}</p>}
           </>
         ) : (
           <div className="inside-hero">
             <span className={`chem-badge ${post.chemical}`}>{post.chemical === 'oxytocin' ? 'Oxytocin' : 'Dopamine'}</span>
             <h1 className="post-title">{post.title}</h1>
             <p className="meta">
-              {new Date(post.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} · {minutes} min
+              {new Date(post.date + 'T12:00:00').toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}{' '}
+              · {minutes} min
             </p>
           </div>
         )}
       </aside>
 
-      <div className="inside-arrive" aria-hidden="true" />
+      <div className="inside-arrive" style={{ background: insideColor(post) }} aria-hidden="true" />
       {leaving && (
         <div className="inside-leave" aria-hidden="true">
           <div className="inside-bloom" />
