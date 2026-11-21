@@ -89,6 +89,8 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.15
   container.appendChild(renderer.domElement)
   const canvas = renderer.domElement
 
@@ -155,9 +157,30 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
   doorGlow.rotation.y = Math.PI / 2
   doorGlow.position.set(x0 - T - 0.02, DOOR.h / 2, (DOOR.z0 + DOOR.z1) / 2)
   scene.add(doorGlow)
-  // Baseboards
-  box(x1 - x0, 0.14, 0.05, 0, 0.07, z0 + 0.02, trim)
-  box(0.05, 0.14, z1 - z0, x1 - 0.02, 0.07, (z0 + z1) / 2, trim)
+  // Two-tone walls: a deeper blue below a white chair rail, white baseboards, and a cap along the top.
+  const lower = lambert('#5d7cc2')
+  const W_ = 1.05
+  box(WIN.x0 - x0, W_, 0.04, (x0 + WIN.x0) / 2, W_ / 2, z0 + 0.02, lower)
+  box(x1 - WIN.x1, W_, 0.04, (WIN.x1 + x1) / 2, W_ / 2, z0 + 0.02, lower)
+  box(WIN.x1 - WIN.x0, WIN.y0, 0.04, wx, WIN.y0 / 2, z0 + 0.02, lower)
+  box(0.04, W_, z1 - z0, x1 - 0.02, W_ / 2, (z0 + z1) / 2, lower)
+  box(0.04, W_, DOOR.z0 - z0, x0 + 0.02, W_ / 2, (z0 + DOOR.z0) / 2, lower)
+  box(0.04, W_, z1 - DOOR.z1, x0 + 0.02, W_ / 2, (DOOR.z1 + z1) / 2, lower)
+  for (const y of [0.07, W_]) {
+    const hh = y < 0.1 ? 0.14 : 0.07
+    box(WIN.x0 - x0, hh, 0.07, (x0 + WIN.x0) / 2, y, z0 + 0.04, trim)
+    box(x1 - WIN.x1, hh, 0.07, (WIN.x1 + x1) / 2, y, z0 + 0.04, trim)
+    box(0.07, hh, z1 - z0, x1 - 0.04, y, (z0 + z1) / 2, trim)
+    box(0.07, hh, DOOR.z0 - z0, x0 + 0.04, y, (z0 + DOOR.z0) / 2, trim)
+    box(0.07, hh, z1 - DOOR.z1, x0 + 0.04, y, (DOOR.z1 + z1) / 2, trim)
+  }
+  box(x1 - x0 + 2 * T, 0.12, T + 0.1, 0, h + 0.06, z0 - T / 2, trim)
+  box(T + 0.1, 0.12, z1 - z0, x1 + T / 2, h + 0.06, (z0 + z1) / 2, trim)
+  box(T + 0.1, 0.12, z1 - z0, x0 - T / 2, h + 0.06, (z0 + z1) / 2, trim)
+  // Door frame.
+  box(0.12, DOOR.h, 0.12, x0 + 0.03, DOOR.h / 2, DOOR.z0, trim)
+  box(0.12, DOOR.h, 0.12, x0 + 0.03, DOOR.h / 2, DOOR.z1, trim)
+  box(0.12, 0.12, DOOR.z1 - DOOR.z0 + 0.12, x0 + 0.03, DOOR.h, (DOOR.z0 + DOOR.z1) / 2, trim)
 
   // ---------- outside the window ----------
   const grass = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), lambert('#9cc59a'))
@@ -182,6 +205,14 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
     const roof = solid(new THREE.Mesh(new THREE.ConeGeometry(3.3, 1.5, 4), lambert('#8a5a4a', { flatShading: true })))
     roof.position.set(hx, 3.55, SIDEWALK - 12)
     roof.rotation.y = Math.PI / 4
+  }
+  // A few round trees along the street.
+  for (let k = 0; k < 7; k++) {
+    const tx = -16 + k * 5.5 + (k % 2) * 1.2
+    const tz = SIDEWALK - 6.5 - (k % 3)
+    box(0.2, 1.2, 0.2, tx, 0.6, tz, lambert('#8a6248'))
+    const crown = solid(new THREE.Mesh(new THREE.IcosahedronGeometry(1 + (k % 3) * 0.25, 0), lambert(['#7fb27a', '#94c08a', '#6fa070'][k % 3], { flatShading: true })))
+    crown.position.set(tx, 1.9 + (k % 3) * 0.2, tz)
   }
   // Street lamps that come on at dusk.
   const lampMat = new THREE.MeshBasicMaterial({ color: '#6b6875' })
@@ -257,6 +288,7 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
     bicorne.position.y = 0.25
     g.add(sheet, bicorne)
     g.rotation.y = Math.PI / 2
+    g.scale.setScalar(1.7)
     scene.add(g)
     const s = { g, row: k % 3, col: Math.floor(k / 3), gone: -1, from: new THREE.Vector3() }
     clickables.push({
@@ -282,6 +314,14 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
   flag.rotation.y = Math.PI / 2
   flag.scale.setScalar(0.001)
   scene.add(flag)
+  // A desk lamp, a stack of books, and a stool.
+  box(0.04, 0.45, 0.04, -6.6, 1.26, -2.1, lambert('#2b2440'))
+  const deskShade = solid(new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.18, 14, 1, true), new THREE.MeshLambertMaterial({ color: '#2b2440', side: THREE.DoubleSide })))
+  deskShade.position.set(-6.5, 1.5, -2.1)
+  deskShade.rotation.z = -0.5
+  ;['#ef6f9a', '#f2b134', '#6f8fd0'].forEach((c, k) => box(0.5 - k * 0.05, 0.07, 0.36, -6.45, 1.08 + k * 0.07, 0.05, lambert(c)))
+  box(0.5, 0.06, 0.5, -5.2, 0.62, -1, wood)
+  box(0.06, 0.62, 0.06, -5.2, 0.31, -1, wood)
 
   // The very nice fat chair (not round; a square-shaped cushion chair).
   const chair = new THREE.Group()
@@ -303,6 +343,66 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
     }
   })
   scene.add(chair)
+
+  // A rug in the middle of the room, under where the package will sit.
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(1, 40), lambert('#efe2c6'))
+  rug.rotation.x = -Math.PI / 2
+  rug.scale.set(2.4, 1.6, 1)
+  rug.position.set(-0.6, 0.01, 2.8)
+  rug.receiveShadow = true
+  const rugEdge = new THREE.Mesh(new THREE.RingGeometry(0.88, 0.96, 40), lambert('#e0a85c'))
+  rugEdge.rotation.x = -Math.PI / 2
+  rugEdge.scale.set(2.4, 1.6, 1)
+  rugEdge.position.set(-0.6, 0.015, 2.8)
+  rugEdge.receiveShadow = true
+  scene.add(rug, rugEdge)
+
+  // A floor lamp and a little table with a mug, beside the chair.
+  const brass = lambert('#c9a46b')
+  box(0.04, 1.9, 0.04, 6.3, 0.95, -0.7, brass)
+  box(0.5, 0.04, 0.5, 6.3, 0.02, -0.7, brass)
+  const shade = solid(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.36, 0.42, 16, 1, true), new THREE.MeshLambertMaterial({ color: '#fbf1dc', side: THREE.DoubleSide, emissive: '#ffcf80', emissiveIntensity: 0 })))
+  shade.position.set(6.3, 1.95, -0.7)
+  const lampLight = new THREE.PointLight('#ffc070', 0, 9, 1.6)
+  lampLight.position.set(6.3, 1.8, -0.7)
+  scene.add(lampLight)
+  box(0.6, 0.05, 0.6, 5.6, 0.62, 2.1, wood)
+  box(0.06, 0.62, 0.06, 5.6, 0.31, 2.1, wood)
+  const mug = solid(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.14, 12), lambert('#ef6f9a')))
+  mug.position.set(5.55, 0.72, 2.05)
+
+  // The air conditioning, high on the wall, breathing a light wind into the room.
+  box(1.3, 0.38, 0.32, x1 - 0.18, 3.25, 2.8, lambert('#f4f2ee')).rotation.y = Math.PI / 2
+  box(0.02, 0.05, 1.1, x1 - 0.34, 3.12, 2.8, lambert('#c9c6c0'))
+  const breeze = Array.from({ length: 5 }, (_, k) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.04), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }))
+    scene.add(m)
+    return { m, off: k / 5, z: 2.3 + (k % 3) * 0.45 }
+  })
+
+  // Curtains on either side of the window, swaying a little.
+  const curtainMat = new THREE.MeshLambertMaterial({ color: '#fbf1dc', side: THREE.DoubleSide })
+  const curtains = [WIN.x0 - 0.35, WIN.x1 + 0.35].map((cx) => {
+    const g = new THREE.Group()
+    for (let f = 0; f < 4; f++) {
+      const fold = mesh(new THREE.BoxGeometry(0.16, 2.9, 0.06), curtainMat)
+      fold.position.set((f - 1.5) * 0.14, -1.45, (f % 2) * 0.06)
+      g.add(fold)
+    }
+    g.position.set(cx, WIN.y1 + 0.35, z0 + 0.12)
+    scene.add(g)
+    return g
+  })
+  box(WIN.x1 - WIN.x0 + 1.6, 0.05, 0.05, wx, WIN.y1 + 0.38, z0 + 0.12, brass)
+
+  // A plant in the back corner.
+  const pot = solid(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.5, 14), lambert('#c96f4a')))
+  pot.position.set(6.3, 0.25, -6.3)
+  for (let k = 0; k < 6; k++) {
+    const leaf = solid(new THREE.Mesh(new THREE.ConeGeometry(0.12, 1, 5), lambert('#5f9a5a', { flatShading: true })))
+    leaf.position.set(6.3 + Math.cos(k) * 0.15, 0.9, -6.3 + Math.sin(k) * 0.15)
+    leaf.rotation.set(Math.sin(k * 2) * 0.4, 0, Math.cos(k * 2) * 0.4)
+  }
   const seatAt = new THREE.Vector3(5.5, 0.5, 0.6)
 
   // The cats: they lie in the boxes of light and follow them as the sun moves.
@@ -644,6 +744,20 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
     const s = -winC.y / sunDir.y
     const patch = new THREE.Vector3(winC.x + sunDir.x * s, 0, winC.z + sunDir.z * s)
 
+    // ---- the light wind: curtains sway, the air conditioning breathes ----
+    curtains.forEach((c, k) => {
+      c.rotation.x = 0.05 + Math.sin(t * 0.9 + k) * 0.05
+      c.rotation.z = Math.sin(t * 0.7 + k * 2) * 0.025
+    })
+    breeze.forEach((b) => {
+      const k = (t * 0.35 + b.off) % 1
+      b.m.position.set(x1 - 0.5 - k * 1.8, 3 - k * 1.2, b.z)
+      b.m.rotation.set(0, Math.PI / 2, -0.55)
+      ;(b.m.material as THREE.MeshBasicMaterial).opacity = Math.sin(k * Math.PI) * 0.35
+    })
+    lampLight.intensity = duskK * 6
+    ;(shade.material as THREE.MeshLambertMaterial).emissiveIntensity = duskK * 0.9
+
     // ---- cats ----
     cats.forEach((c) => {
       let goal: THREE.Vector3
@@ -676,7 +790,7 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
       if (sd.gone < 0) {
         standing++
         const march = Math.sin(t * 0.6) * 0.5
-        sd.g.position.set(-6.45 + sd.row * 0.28, 1.04 + Math.abs(Math.sin(t * 6 + sd.col + sd.row)) * 0.03, -1.9 + sd.col * 0.5 + march)
+        sd.g.position.set(-6.45 + sd.row * 0.36, 1.04 + Math.abs(Math.sin(t * 6 + sd.col + sd.row)) * 0.03, -1.75 + sd.col * 0.45 + march * 0.6)
         return
       }
       // Crumpled and tossed in an arc into the bin.
@@ -776,7 +890,7 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
     const nearWindow = stations[stop]?.window && pos.distanceTo(stations[stop].at) < 2.2 ? 1 : 0
     windowCam += (nearWindow - windowCam) * Math.min(1, dt * 2)
     // A dollhouse view from the open front of the room, following you a little.
-    camPos.set(pos.x * 0.35, 10.5 * backOff, 12.5 * backOff + pos.z * 0.3)
+    camPos.set(pos.x * 0.3, 11.5 * backOff, 13.5 * backOff + pos.z * 0.25)
     look.set(pos.x * 0.6, 0.6, pos.z * 0.7 - 1)
     // At the window, it comes down behind you to look out.
     camPos.lerp(tmp.set(wx, 2.7, z0 + 3.4), ease(windowCam))
@@ -798,6 +912,8 @@ export function createBlueRoom(container: HTMLElement, opts: RoomOptions): Cave 
     renderer.render(scene, camera)
   }
   raf = requestAnimationFrame(frame)
+  // Local testing only: jump the walker somewhere.
+  if (import.meta.env.DEV) (window as unknown as { __walk: (x: number, z: number) => void }).__walk = (x, z) => pos.set(x, 0, z)
 
   return {
     rush: () => {
