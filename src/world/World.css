@@ -46,6 +46,9 @@
 .world-label.chem-dopamine {
   --chem: var(--dopamine);
 }
+.world-label.chem-place {
+  --chem: #5e5866;
+}
 .world-label.chem-oxytocin {
   --chem: var(--oxytocin);
 }
@@ -122,4 +125,12 @@
 .world-broken a {
   color: #1f1b24;
   text-decoration: none;
+}
+
+.world-dive {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #0e0907;
+  transition: clip-path 0.7s cubic-bezier(0.55, 0, 0.75, 0.3);
 }

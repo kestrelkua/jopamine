@@ -1,14 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { whoosh } from '../sound'
 import { Link, useNavigate } from 'react-router-dom'
 import { allPosts, useDrafts } from '../content/drafts'
 import type { Post } from '../content/types'
 import Door from '../pages/Door'
 import '../pages/Home.css'
-import { createWorld } from './engine'
+import { createWorld, type Place } from './engine'
 import { hasInside } from './inside/hasInside'
 import './World.css'
 
 const FROM = 'jt.world.from'
+
+const places: Place[] = [
+  { key: 'studio', title: 'Studio', to: '/write' },
+  { key: 'library', title: 'Library', to: '/library' },
+]
+
+function rememberDoor(key: string) {
+  try {
+    sessionStorage.setItem(FROM, key)
+  } catch {
+    // Coming back just starts in the middle.
+  }
+}
 
 /** Where a building's door leads: walking inside if the post has an inside, otherwise the reader. */
 const placeOf = (post: Post) => (hasInside(post) ? `/inside/${post.slug}` : `/post/${post.slug}`)
@@ -19,6 +33,26 @@ function cameFrom() {
   } catch {
     return null
   }
+}
+
+/** Stepping through a doorway into a 3D inside: the dark of the doorway grows until it fills the screen. */
+function Dive({ from, onDone }: { from: DOMRect; onDone: () => void }) {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => setOpen(true))
+    })
+    whoosh()
+    const done = window.setTimeout(onDone, 750)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.clearTimeout(done)
+    }
+  }, [onDone])
+  const x = from.left + from.width / 2
+  const y = from.top + from.height / 2
+  const r = open ? '150vmax' : `${Math.max(from.width, from.height) / 2}px`
+  return <div className="world-dive" style={{ clipPath: `circle(${r} at ${x}px ${y}px)` }} aria-hidden="true" />
 }
 
 export default function World() {
@@ -42,12 +76,13 @@ export default function World() {
         posts: postsRef.current,
         from: cameFrom(),
         onFirstMove: () => setMoved(true),
+        places,
+        onPlace: (place) => {
+          rememberDoor(place.key)
+          navigate(place.to)
+        },
         onEnter: (post, from) => {
-          try {
-            sessionStorage.setItem(FROM, post.slug)
-          } catch {
-            // Coming back just starts in the middle.
-          }
+          rememberDoor(post.slug)
           if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) navigate(placeOf(post), { state: { from: 'world' } })
           else setOpening({ post, from })
         },
@@ -80,7 +115,7 @@ export default function World() {
           </div>
         )
       )}
-      {opening && <Door post={opening.post} from={opening.from} onDone={arrive} />}
+      {opening && (hasInside(opening.post) ? <Dive from={opening.from} onDone={arrive} /> : <Door post={opening.post} from={opening.from} onDone={arrive} />)}
     </div>
   )
 }

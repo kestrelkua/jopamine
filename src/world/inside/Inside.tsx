@@ -71,7 +71,7 @@ function CaveWalk({ post }: { post: Post }) {
           } catch {
             // Coming back just starts in the middle.
           }
-          navigate('/world')
+          navigate('/')
         },
         onFirstMove: () => setMoved(true),
       })
@@ -123,7 +123,7 @@ function CaveWalk({ post }: { post: Post }) {
           <div className="level-fill" style={{ width: `${level}%` }} />
         </div>
         <div className="topbar-row">
-          <Link to="/world" className="home-link">
+          <Link to="/" className="home-link">
             ← <span className="hide-sm">Jopamine Tinoxytocin</span>
           </Link>
           <span className="where">{section?.label ?? post.title}</span>

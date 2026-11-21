@@ -10,6 +10,9 @@ export interface WorldOptions {
   /** Slug of the post the reader just came back from; they start outside its door. */
   from?: string | null
   onEnter: (post: Post, door: DOMRect) => void
+  /** Buildings that aren't posts: the studio, the library. */
+  places: Place[]
+  onPlace: (place: Place) => void
   onFirstMove: () => void
 }
 
@@ -25,8 +28,17 @@ const sideOf = (x: number) => smooth(-5, 5, x)
 
 // ---------- buildings ----------
 
+export interface Place {
+  key: 'studio' | 'library'
+  title: string
+  to: string
+}
+
 interface Building {
-  post: Post
+  /** A post's slug, or a place's key. */
+  key: string
+  post?: Post
+  place?: Place
   group: THREE.Group
   /** Where you stand to go in, in world space. */
   door: THREE.Vector3
@@ -155,31 +167,135 @@ function cave(): Made {
   }
 }
 
+/** Where you write: a cottage with a big window, a desk lamp, and a pencil for a chimney. */
+function studio(): Made {
+  const g = new THREE.Group()
+  const walls = mesh(new THREE.BoxGeometry(3.6, 2.6, 3.4), lambert('#f3e6cf'))
+  walls.position.y = 1.3
+  const roof = mesh(new THREE.BoxGeometry(4.1, 0.25, 4), lambert('#c96f4a'))
+  roof.position.set(0, 2.9, 0)
+  roof.rotation.x = -0.18
+  const door = mesh(new THREE.BoxGeometry(0.9, 1.8, 0.1), lambert('#7a4a32'))
+  door.position.set(0.9, 0.9, 1.72)
+  const knob = mesh(new THREE.SphereGeometry(0.05), lambert('#f2b134'), false)
+  knob.position.set(1.2, 0.9, 1.79)
+  const glow = new THREE.MeshLambertMaterial({ color: '#ffe9b8', emissive: '#ffd27a', emissiveIntensity: 0.85 })
+  const win = mesh(new THREE.BoxGeometry(1.5, 1.1, 0.06), glow, false)
+  win.position.set(-0.75, 1.5, 1.72)
+  const frame = mesh(new THREE.BoxGeometry(0.06, 1.1, 0.08), lambert('#7a4a32'), false)
+  frame.position.set(-0.75, 1.5, 1.75)
+  // A desk and a lamp, seen through the window.
+  const desk = mesh(new THREE.BoxGeometry(1.2, 0.08, 0.4), lambert('#7a4a32'), false)
+  desk.position.set(-0.75, 1.05, 1.66)
+  const lamp = mesh(new THREE.ConeGeometry(0.12, 0.16, 10), lambert('#2b2440'), false)
+  lamp.position.set(-0.35, 1.35, 1.64)
+  // The chimney is a pencil.
+  const pencil = new THREE.Group()
+  const wood = mesh(new THREE.CylinderGeometry(0.26, 0.26, 1.7, 6), lambert('#f2b134', { flatShading: true }))
+  wood.position.y = 0.85
+  const eraser = mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.3, 6), lambert('#ef6f9a', { flatShading: true }))
+  eraser.position.y = -0.1
+  const band = mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.1, 6), lambert('#c0c0c8'), false)
+  band.position.y = 0.06
+  const tip = mesh(new THREE.ConeGeometry(0.26, 0.45, 6), lambert('#ecc9a0', { flatShading: true }))
+  tip.position.y = 1.92
+  const lead = mesh(new THREE.ConeGeometry(0.08, 0.14, 6), lambert('#2b2440'), false)
+  lead.position.y = 2.1
+  pencil.add(wood, eraser, band, tip, lead)
+  pencil.position.set(1.1, 2.7, -0.7)
+  g.add(walls, roof, door, knob, win, frame, desk, lamp, pencil)
+  const smoke = puffs(g, new THREE.Vector3(1.1, 4.95, -0.7))
+  return { group: g, frontZ: 1.72, doorW: 0.9, doorH: 1.8, doorY: 0, radius: 2.7, height: 5, update: smoke }
+}
+
+/** Where every post is shelved: columns, a pediment, and a staircase of books. */
+function library(): Made {
+  const g = new THREE.Group()
+  const stone = lambert('#ece3d3')
+  const hall = mesh(new THREE.BoxGeometry(4.2, 2.8, 3), stone)
+  hall.position.set(0, 1.4, -0.3)
+  const roof = mesh(new THREE.CylinderGeometry(1, 1, 4.6, 3), lambert('#d8cbb4', { flatShading: true }))
+  roof.rotation.z = Math.PI / 2
+  roof.scale.set(1, 1, 1.9)
+  roof.position.set(0, 3.25, 0.05)
+  const ledge = mesh(new THREE.BoxGeometry(4.6, 0.2, 3.9), stone)
+  ledge.position.set(0, 2.85, 0.05)
+  g.add(hall, roof, ledge)
+  for (const x of [-1.6, -0.55, 0.55, 1.6]) {
+    const col = mesh(new THREE.CylinderGeometry(0.17, 0.2, 2.6, 10), stone)
+    col.position.set(x, 1.45, 1.55)
+    g.add(col)
+  }
+  const door = mesh(new THREE.BoxGeometry(1, 1.9, 0.1), lambert('#3b2c4a'))
+  door.position.set(0, 1.1, 1.22)
+  g.add(door)
+  // The front steps are three giant books.
+  const spines = ['#6f8fd0', '#ef6f9a', '#f2b134']
+  spines.forEach((c, k) => {
+    const book = mesh(new THREE.BoxGeometry(4 - k * 0.5, 0.18, 0.9 - k * 0.15), lambert(c))
+    book.position.set((k - 1) * 0.08, 0.09 + k * 0.18, 2.15 - k * 0.3)
+    const pages = mesh(new THREE.BoxGeometry(4 - k * 0.5 - 0.1, 0.12, 0.05), lambert('#fbf7f1'), false)
+    pages.position.set(book.position.x, book.position.y, book.position.z + (0.9 - k * 0.15) / 2)
+    g.add(book, pages)
+  })
+  const win = mesh(new THREE.CircleGeometry(0.32, 20), new THREE.MeshLambertMaterial({ color: '#ffe9b8', emissive: '#ffd27a', emissiveIntensity: 0.8 }), false)
+  win.position.set(0, 3.25, 1.47)
+  g.add(win)
+  return { group: g, frontZ: 1.22, doorW: 1, doorH: 1.9, doorY: 0.2, radius: 2.9, height: 4.6, update: () => {} }
+}
+
+/** Soft smoke puffs drifting up from a point. */
+function puffs(parent: THREE.Group, from: THREE.Vector3) {
+  const mat = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.6, depthWrite: false })
+  const list = Array.from({ length: 6 }, (_, k) => {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), mat.clone())
+    parent.add(m)
+    return { m, off: k / 6 }
+  })
+  return (t: number) => {
+    for (const p of list) {
+      const k = (t * 0.22 + p.off) % 1
+      p.m.position.set(from.x + Math.sin(k * 5 + p.off * 9) * 0.25 + k * 0.6, from.y + k * 2.4, from.z)
+      p.m.scale.setScalar(0.5 + k * 1.4)
+      ;(p.m.material as THREE.MeshLambertMaterial).opacity = 0.55 * (1 - k) * Math.min(1, k * 6)
+    }
+  }
+}
+
 const builders: Record<SceneId, () => Made> = { 'blue-room': blueRoom, cave }
 
 /** Spots for buildings on the dopamine side, nearest the middle first; the oxytocin side mirrors them.
  *  They sit on the far half of the island so their doors face the camera. */
 const slots: [number, number][] = [
   [-10, -6],
-  [-6, -15],
-  [-17, -4],
-  [-15, -14],
-  [-20, 4],
+  [-16, 2],
+  [-15, -11],
+  [-21, -5],
+  [-11, -19],
 ]
 
-function placeBuildings(posts: Post[], scene: THREE.Scene, overlay: HTMLElement): Building[] {
+/** The studio and the library stand side by side at the back, between the two halves. */
+const placeSpots: Record<Place['key'], [number, number]> = { studio: [-3.8, -15.5], library: [3.8, -15.5] }
+
+function placeBuildings(posts: Post[], places: Place[], scene: THREE.Scene, overlay: HTMLElement): Building[] {
   const used = { dopamine: 0, oxytocin: 0 }
-  return posts.flatMap((post) => {
-    const i = used[post.chemical]++
-    if (i >= slots.length) return []
-    const [sx, sz] = slots[i]
-    const x = post.chemical === 'dopamine' ? sx : -sx
-    const z = sz
-    const made = builders[post.scene]()
+  const plans = [
+    ...posts.flatMap((post) => {
+      const i = used[post.chemical]++
+      if (i >= slots.length) return []
+      const [sx, z] = slots[i]
+      return [{ key: post.slug, title: post.title, chem: post.chemical as string, x: post.chemical === 'dopamine' ? sx : -sx, z, made: builders[post.scene](), post, place: undefined as Place | undefined }]
+    }),
+    ...places.map((place) => {
+      const [x, z] = placeSpots[place.key]
+      return { key: place.key, title: place.title, chem: 'place', x, z, made: (place.key === 'studio' ? studio : library)(), post: undefined as Post | undefined, place }
+    }),
+  ]
+  return plans.map(({ key, title, chem, x, z, made, post, place }) => {
     const group = made.group
     group.position.set(x, 0, z)
     group.rotation.y = Math.atan2(-x, -z) // front faces the middle of the island
-    group.userData.slug = post.slug
+    group.userData.slug = key
     scene.add(group)
     group.updateMatrixWorld(true)
 
@@ -188,22 +304,11 @@ function placeBuildings(posts: Post[], scene: THREE.Scene, overlay: HTMLElement)
     const doorway = [new THREE.Vector3(-w / 2, y, f), new THREE.Vector3(w / 2, y, f), new THREE.Vector3(-w / 2, y + h, f), new THREE.Vector3(w / 2, y + h, f)]
 
     const label = document.createElement('div')
-    label.className = `world-label chem-${post.chemical}`
-    label.textContent = post.title
+    label.className = `world-label chem-${chem}`
+    label.textContent = title
     overlay.appendChild(label)
 
-    return [
-      {
-        post,
-        group,
-        door,
-        doorway,
-        radius: made.radius,
-        label,
-        labelAt: new THREE.Vector3(x, made.height + 0.6, z),
-        update: made.update,
-      },
-    ]
+    return { key, post, place, group, door, doorway, radius: made.radius, label, labelAt: new THREE.Vector3(x, made.height + 0.6, z), update: made.update }
   })
 }
 
@@ -354,7 +459,7 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
   scene.add(sun)
 
   island(scene)
-  const buildings = placeBuildings(opts.posts, scene, overlay)
+  const buildings = placeBuildings(opts.posts, opts.places, scene, overlay)
   paths(scene, buildings)
   const grove = trees(scene, buildings)
   const stones = pebbles(scene)
@@ -362,7 +467,7 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
   scene.add(me.group)
 
   // Start in the middle, or outside the door you just came out of.
-  const back = buildings.find((b) => b.post.slug === opts.from)
+  const back = buildings.find((b) => b.key === opts.from)
   if (back) {
     const out = new THREE.Vector3().subVectors(back.door, back.group.position).setY(0).normalize()
     me.group.position.copy(back.door).addScaledVector(out, 1.6)
@@ -512,7 +617,8 @@ export function createWorld(container: HTMLElement, opts: WorldOptions): World {
       x1 = Math.max(x1, x)
       y1 = Math.max(y1, y)
     }
-    opts.onEnter(b.post, new DOMRect(x0, y0, x1 - x0, y1 - y0))
+    if (b.post) opts.onEnter(b.post, new DOMRect(x0, y0, x1 - x0, y1 - y0))
+    else if (b.place) opts.onPlace(b.place)
   }
 
   const frame = (now: number) => {

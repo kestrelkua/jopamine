@@ -10,6 +10,12 @@ import Tracker from './tracker/Tracker'
 const World = lazy(() => import('./world/World'))
 const Inside = lazy(() => import('./world/inside/Inside'))
 
+const worldPage = (
+  <Suspense fallback={<div className="world" />}>
+    <World />
+  </Suspense>
+)
+
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => {
@@ -23,7 +29,6 @@ export default function App() {
     <>
       <ScrollToTop />
       <Routes>
-        <Route path="/" element={<Home />} />
         <Route path="/post/:slug" element={<Reader />} />
         <Route path="/write" element={<WriteHome />} />
         <Route path="/write/:id" element={<Editor />} />
@@ -37,15 +42,10 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route
-          path="/world"
-          element={
-            <Suspense fallback={<div className="world" />}>
-              <World />
-            </Suspense>
-          }
-        />
-        <Route path="*" element={<Home />} />
+        <Route path="/" element={worldPage} />
+        <Route path="/world" element={worldPage} />
+        <Route path="/library" element={<Home />} />
+        <Route path="*" element={worldPage} />
       </Routes>
     </>
   )
