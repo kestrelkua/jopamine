@@ -37,6 +37,14 @@ export interface Reality {
   finale?: () => void
   /** The real room at the end: walking out the door. */
   exit?: (me: THREE.Vector3) => boolean
+  /** Hides the story card: this reality writes its words into the world instead. */
+  noCard?: boolean
+  /** Effects to apply right now: a colour-vision filter, and how slowed-down time feels (0 to 1). */
+  fx?: () => { deut?: boolean; slow?: number }
+  /** A sky colour that changes over time, instead of the fixed `sky`. */
+  skyNow?: (t: number) => THREE.Color
+  /** How big the walker is right now (1 = normal). */
+  walkerScale?: () => number
   /** The walker is sitting down. */
   sitting?: () => boolean
   /** Where the way out is, at the end. */

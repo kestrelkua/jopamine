@@ -8,6 +8,7 @@ export type Gift =
 
 export const gifts: Record<SceneId, Gift> = {
   'blue-room': { kind: 'spark', line: 'Leave a little light in the room' },
+  ocean: { kind: 'spark', line: 'Drop in your shade of blue' },
   cave: { kind: 'guitar', line: 'Give some of your own musicking', endFocus: 'gift' },
 }
 

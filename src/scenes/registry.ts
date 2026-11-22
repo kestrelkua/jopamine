@@ -28,4 +28,15 @@ export const rooms: Record<SceneId, { name: string; focuses: { id: string; name:
       { id: 'default', name: 'Wide cave' },
     ],
   },
+  ocean: {
+    name: 'Caribbean blue',
+    focuses: [
+      { id: 'shade', name: 'Your shade' },
+      { id: 'parens', name: 'Every angle' },
+      { id: 'meteor', name: 'Light years away' },
+      { id: 'ribbon', name: 'No stops' },
+      { id: 'angled', name: 'Angled' },
+      { id: 'default', name: 'Wide sea' },
+    ],
+  },
 }

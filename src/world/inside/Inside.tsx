@@ -9,6 +9,7 @@ import { useRoomMusic } from '../../reader/useRoomMusic'
 import '../../reader/Reader.css'
 import '../World.css'
 import { createBlueRoom } from './blueRoom'
+import { createCaribbean } from './caribbean'
 import { createCave, type Cave } from './cave'
 import { hasInside, insideColor } from './hasInside'
 import './Inside.css'
@@ -49,6 +50,7 @@ function Walk({ post }: { post: Post }) {
   const [music, setMusic] = useState(musicOn)
   const [leaving, setLeaving] = useState(false)
   const [warps, setWarps] = useState(0)
+  const [showCard, setShowCard] = useState(true)
   const roomMusic = useRoomMusic(post, music, () => !!given)
   const box = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
@@ -73,6 +75,8 @@ function Walk({ post }: { post: Post }) {
   })
 
   const focuses = sections.map((s) => s.focus).join()
+  const sectionsRef = useRef(sections)
+  sectionsRef.current = sections
   useEffect(() => {
     const el = box.current
     if (!el) return
@@ -87,18 +91,20 @@ function Walk({ post }: { post: Post }) {
       const c =
         post.scene === 'blue-room'
           ? createBlueRoom(el, { ...common, onWarp: () => setWarps((n) => n + 1) })
-          : createCave(el, {
-              ...common,
-              given: loadGiven(giftKey),
-              chainDone: loadFlag(chainKey(post.slug)),
-              onChain: () => saveFlag(chainKey(post.slug)),
-              songDone: loadFlag(songKey(post.slug)),
-              onSong: () => saveFlag(songKey(post.slug)),
-              onGive: (name) => {
-                setGiven(name)
-                saveGiven(giftKey, name)
-              },
-            })
+          : post.scene === 'ocean'
+            ? createCaribbean(el, { ...common, onWarp: () => setWarps((n) => n + 1), onCard: setShowCard }, sectionsRef.current)
+            : createCave(el, {
+                ...common,
+                given: loadGiven(giftKey),
+                chainDone: loadFlag(chainKey(post.slug)),
+                onChain: () => saveFlag(chainKey(post.slug)),
+                songDone: loadFlag(songKey(post.slug)),
+                onSong: () => saveFlag(songKey(post.slug)),
+                onGive: (name) => {
+                  setGiven(name)
+                  saveGiven(giftKey, name)
+                },
+              })
       cave.current = c
       return () => {
         cave.current = null
@@ -116,6 +122,7 @@ function Walk({ post }: { post: Post }) {
     const measure = () => {
       const r = el.getBoundingClientRect()
       const wide = window.innerWidth >= 820
+      if (!showCard) return cave.current?.setInset(0, 0)
       cave.current?.setInset(wide ? window.innerWidth - r.left : 0, wide ? 0 : window.innerHeight - r.top)
     }
     measure()
@@ -126,7 +133,7 @@ function Walk({ post }: { post: Post }) {
       ro.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [stop])
+  }, [stop, showCard])
 
   // Each new part of the story starts at its top.
   useEffect(() => {
@@ -182,7 +189,7 @@ function Walk({ post }: { post: Post }) {
       </header>
 
       <aside
-        className="inside-card card"
+        className={`inside-card card ${showCard ? '' : 'gone'}`}
         ref={card}
         key={stop}
         aria-live="polite"

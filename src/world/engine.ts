@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import type { Post, SceneId } from '../content/types'
 import { tick } from '../sound'
 import { GOLD, PINK, lambert, mesh, seeded, smooth, walker } from './parts'
+import { angled, makeShade } from './shade'
 
 export interface WorldOptions {
   posts: Post[]
@@ -264,13 +265,71 @@ function puffs(parent: THREE.Group, from: THREE.Vector3) {
   }
 }
 
-const builders: Record<SceneId, () => Made> = { 'blue-room': blueRoom, cave }
+/** Caribbean Blue: a drop of ocean floating over a little dock. Its colour changes with the angle you see it from. */
+function ocean(): Made {
+  const g = new THREE.Group()
+  const shade = makeShade(0.53, 1, 0.16)
+  const drop = mesh(new THREE.SphereGeometry(2.3, 40, 30), angled(shade, { light: 0.62, chroma: 0.8, opacity: 0.86, emissive: 0.15 }), false)
+  drop.scale.set(1, 1.15, 1)
+  drop.position.y = 4.2
+  // Fish swimming inside.
+  const fish = [0, 1, 2, 3].map((k) => {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 6), new THREE.MeshLambertMaterial({ color: ['#ffd06a', '#ff8a6a', '#ffe9a0', '#f2b134'][k] }))
+    f.rotation.z = Math.PI / 2
+    const pivot = new THREE.Group()
+    pivot.position.y = 4.2 + (k - 1.5) * 0.5
+    f.position.x = 1 + (k % 2) * 0.5
+    pivot.add(f)
+    g.add(pivot)
+    return pivot
+  })
+  // The dock under it, and a ring of light on the ground.
+  const wood = lambert('#b88a5a')
+  const deck = mesh(new THREE.BoxGeometry(2.4, 0.18, 3.4), wood)
+  deck.position.set(0, 0.35, 0.8)
+  g.add(deck)
+  for (const [x, z] of [
+    [-1, -0.7],
+    [1, -0.7],
+    [-1, 2.3],
+    [1, 2.3],
+  ]) {
+    const post = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.7, 8), lambert('#8a6248'))
+    post.position.set(x, 0.3, z)
+    g.add(post)
+  }
+  const pool = mesh(new THREE.CircleGeometry(3.4, 40), angled(shade, { light: 0.55, chroma: 0.7 }), false)
+  pool.rotation.x = -Math.PI / 2
+  pool.position.y = 0.02
+  g.add(pool)
+  // A thin stream of water falling from the drop back into the pool.
+  const stream = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, 2, 8, 1, true), angled(shade, { light: 0.8, chroma: 0.5, opacity: 0.6, emissive: 0.2 }))
+  stream.position.set(0.9, 1.5, -0.6)
+  g.add(drop, stream)
+  return {
+    group: g,
+    frontZ: 2.5,
+    doorW: 2.4,
+    doorH: 2.6,
+    doorY: 2.2,
+    radius: 3,
+    height: 7.6,
+    update: (t) => {
+      drop.position.y = 4.2 + Math.sin(t * 0.9) * 0.25
+      drop.scale.set(1 + Math.sin(t * 1.7) * 0.02, 1.15 + Math.sin(t * 1.3) * 0.03, 1 + Math.cos(t * 1.5) * 0.02)
+      fish.forEach((f, k) => (f.rotation.y = t * (0.6 + k * 0.15) * (k % 2 ? -1 : 1)))
+      shade.uBase.value = 0.53 + Math.sin(t * 0.15) * 0.03
+    },
+  }
+}
+
+const builders: Record<SceneId, () => Made> = { 'blue-room': blueRoom, cave, ocean }
 
 /** Spots for buildings on the dopamine side, nearest the middle first; the oxytocin side mirrors them.
  *  They sit on the far half of the island so their doors face the camera. */
 const slots: [number, number][] = [
   [-10, -6],
-  [-16, 2],
+  [-9.5, 5],
   [-15, -11],
   [-21, -5],
   [-11, -19],

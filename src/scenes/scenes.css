@@ -349,3 +349,23 @@
     animation: none;
   }
 }
+
+/* Caribbean Blue */
+.ocean-wave {
+  animation: ocean-wave 6s ease-in-out infinite alternate;
+}
+@keyframes ocean-wave {
+  to {
+    transform: translateX(-60px);
+  }
+}
+.ocean-fish {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ocean-fish 4s ease-in-out infinite alternate;
+}
+@keyframes ocean-fish {
+  to {
+    transform: translate(-40px, 12px) scaleX(-1);
+  }
+}

@@ -1,6 +1,6 @@
 export type Chemical = 'dopamine' | 'oxytocin'
 
-export type SceneId = 'blue-room' | 'cave'
+export type SceneId = 'blue-room' | 'cave' | 'ocean'
 
 /** A director's-commentary note pinned to a phrase inside a paragraph. */
 export interface Note {
