@@ -20,20 +20,114 @@ export function makeSea(sections: Section[]): Sea {
 /** The ring of blues you choose from (and, once you have, the shades you didn't choose). */
 export const BLUES = [0.47, 0.5, 0.53, 0.56, 0.59, 0.62, 0.66, 0.44]
 
-/** A wide sea that moves a little. */
+/**
+ * The sea, made of shapes: a field of flat geometric facets (triangles, and fans of four around a moving
+ * centre), each its own blue for where it is: lighter on the crests, deeper in the troughs, brighter where
+ * it tilts to the light. The corners slide sideways as well as up and down, so every shape keeps changing,
+ * its edges stretching and shrinking, and the changing shapes are the waves.
+ */
 export function water(sea: Sea, size = 160) {
-  const geo = new THREE.PlaneGeometry(size, size, 60, 60)
-  geo.rotateX(-Math.PI / 2)
-  const base = (geo.attributes.position.array as Float32Array).slice()
-  const m = new THREE.Mesh(geo, angled(sea.shade, { light: 0.55, chroma: 0.85 }))
+  const N = Math.round(size / 2.7)
+  const cell = size / N
+  const half = size / 2
+  // Lattice corners, then one moving centre for each fanned cell.
+  const base: number[] = []
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) base.push(-half + i * cell, -half + j * cell)
+  const corner = (i: number, j: number) => j * (N + 1) + i
+  const tris: number[] = []
+  const hash = (i: number, j: number) => {
+    const h = Math.sin(i * 127.1 + j * 311.7) * 43758.5453
+    return h - Math.floor(h)
+  }
+  for (let j = 0; j < N; j++)
+    for (let i = 0; i < N; i++) {
+      const a = corner(i, j)
+      const b = corner(i + 1, j)
+      const c = corner(i + 1, j + 1)
+      const d = corner(i, j + 1)
+      const kind = hash(i, j)
+      if (kind < 0.36) tris.push(a, d, b, b, d, c)
+      else if (kind < 0.72) tris.push(a, d, c, a, c, b)
+      else {
+        const m = base.length / 2
+        base.push(-half + (i + 0.5) * cell, -half + (j + 0.5) * cell)
+        tris.push(a, d, m, d, c, m, c, b, m, b, a, m)
+      }
+    }
+  const points = base.length / 2
+  const tri = tris.length / 3
+  const jitter = Float32Array.from({ length: tri }, (_, k) => hash(k, 7.3) - 0.5)
+  const P = new Float32Array(points * 3)
+  const pos = new Float32Array(tri * 9)
+  const col = new Float32Array(tri * 9)
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3))
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }))
   m.receiveShadow = true
+  m.frustumCulled = false
+  const c = new THREE.Color()
+  const sun = new THREE.Vector3(0.4, 0.85, 0.35).normalize()
+  const mixHue = (a: number, b: number, k: number) => a + ((((b - a + 0.5) % 1) + 1) % 1 - 0.5) * k
   return {
     mesh: m,
     update: (t: number) => {
-      const p = geo.attributes.position.array as Float32Array
-      for (let i = 0; i < p.length; i += 3) p[i + 1] = base[i + 1] - 0.25 + Math.sin(base[i] * 0.35 + t * 1.1) * 0.12 + Math.cos(base[i + 2] * 0.3 + t * 0.8) * 0.12
+      // Move every corner: up and down with the swell, and sideways so the shapes reshape.
+      for (let k = 0; k < points; k++) {
+        const x = base[k * 2]
+        const z = base[k * 2 + 1]
+        const fan = k >= (N + 1) * (N + 1)
+        const sway = fan ? 0.42 : 0.24
+        P[k * 3] = x + Math.sin(z * 0.21 + t * 0.9 + x * 0.05) * cell * sway
+        P[k * 3 + 2] = z + Math.cos(x * 0.19 + t * 0.75 - z * 0.04) * cell * sway
+        P[k * 3 + 1] = -0.42 + Math.sin(x * 0.16 + t * 1.05) * 0.22 + Math.sin(z * 0.23 - t * 0.85 + x * 0.07) * 0.16 + Math.sin((x + z) * 0.5 + t * 1.7) * 0.05 + (fan ? Math.sin(t * 1.3 + x) * 0.06 : 0)
+      }
+      const u = sea.shade
+      const sat = 0.88 * u.uSat.value
+      for (let f = 0; f < tri; f++) {
+        const a = tris[f * 3] * 3
+        const b = tris[f * 3 + 1] * 3
+        const d = tris[f * 3 + 2] * 3
+        const o = f * 9
+        pos[o] = P[a]
+        pos[o + 1] = P[a + 1]
+        pos[o + 2] = P[a + 2]
+        pos[o + 3] = P[b]
+        pos[o + 4] = P[b + 1]
+        pos[o + 5] = P[b + 2]
+        pos[o + 6] = P[d]
+        pos[o + 7] = P[d + 1]
+        pos[o + 8] = P[d + 2]
+        // The facet's tilt.
+        const e1x = P[b] - P[a]
+        const e1y = P[b + 1] - P[a + 1]
+        const e1z = P[b + 2] - P[a + 2]
+        const e2x = P[d] - P[a]
+        const e2y = P[d + 1] - P[a + 1]
+        const e2z = P[d + 2] - P[a + 2]
+        let nx = e1y * e2z - e1z * e2y
+        let ny = e1z * e2x - e1x * e2z
+        let nz = e1x * e2y - e1y * e2x
+        const nl = Math.hypot(nx, ny, nz) || 1
+        const flip = ny < 0 ? -1 : 1
+        nx = (nx / nl) * flip
+        ny = (ny / nl) * flip
+        nz = (nz / nl) * flip
+        const h = (P[a + 1] + P[b + 1] + P[d + 1]) / 3 + 0.42 // 0 at the mean, + on crests
+        const lit = nx * sun.x + ny * sun.y + nz * sun.z
+        // A blue that makes sense where it is: crests drift toward teal and light, troughs toward deep blue.
+        let hue = u.uBase.value - h * 0.16 + nx * 0.07 + jitter[f] * 0.06
+        hue = mixHue(hue, u.uDriftHue.value, u.uDrift.value * 0.8)
+        const light = Math.min(0.78, Math.max(0.14, 0.3 + h * 0.6 + (lit - 0.85) * 1.6 + jitter[f] * 0.08))
+        c.setHSL(((hue % 1) + 1) % 1, sat, light)
+        for (let q = 0; q < 9; q += 3) {
+          col[o + q] = c.r
+          col[o + q + 1] = c.g
+          col[o + q + 2] = c.b
+        }
+      }
       geo.attributes.position.needsUpdate = true
-      geo.computeVertexNormals()
+      geo.attributes.color.needsUpdate = true
     },
   }
 }

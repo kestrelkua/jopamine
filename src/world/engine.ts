@@ -269,7 +269,8 @@ function puffs(parent: THREE.Group, from: THREE.Vector3) {
 function ocean(): Made {
   const g = new THREE.Group()
   const shade = makeShade(0.53, 1, 0.16)
-  const drop = mesh(new THREE.SphereGeometry(2.3, 40, 30), angled(shade, { light: 0.62, chroma: 0.8, opacity: 0.86, emissive: 0.15 }), false)
+  // Made of facets, each its own shade for the angle it faces.
+  const drop = mesh(new THREE.IcosahedronGeometry(2.3, 3), angled(shade, { light: 0.6, chroma: 0.85, opacity: 0.88, emissive: 0.15, facets: true }), false)
   drop.scale.set(1, 1.15, 1)
   drop.position.y = 4.2
   // Fish swimming inside.

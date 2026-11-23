@@ -44,8 +44,11 @@ float shadeHueMix(float a, float b, float k) {
  * A Lambert material tinted by angle. `light` sets how bright it is (0..1), `chroma` how saturated.
  * Everything that shares `u` changes together.
  */
-export function angled(u: ShadeUniforms, { light = 0.75, chroma = 0.75, opacity = 1, emissive = 0, side = THREE.FrontSide }: { light?: number; chroma?: number; opacity?: number; emissive?: number; side?: THREE.Side } = {}) {
-  const m = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: opacity < 1, opacity, side, emissive: '#ffffff', emissiveIntensity: 0 })
+export function angled(
+  u: ShadeUniforms,
+  { light = 0.75, chroma = 0.75, opacity = 1, emissive = 0, side = THREE.FrontSide, facets = false }: { light?: number; chroma?: number; opacity?: number; emissive?: number; side?: THREE.Side; facets?: boolean } = {},
+) {
+  const m = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: opacity < 1, opacity, side, emissive: '#ffffff', emissiveIntensity: 0, flatShading: facets })
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u)
     shader.fragmentShader = HSV + shader.fragmentShader.replace(
@@ -63,7 +66,7 @@ export function angled(u: ShadeUniforms, { light = 0.75, chroma = 0.75, opacity 
     )
   }
   // Each combination of settings compiles its own program.
-  m.customProgramCacheKey = () => `angled-${light}-${chroma}-${emissive}`
+  m.customProgramCacheKey = () => `angled-${light}-${chroma}-${emissive}-${facets}`
   return m
 }
 
